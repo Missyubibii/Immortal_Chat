@@ -1,0 +1,11 @@
+# Bảo mật
+.env
+
+# Hệ thống: Bỏ qua thư mục biên dịch/rác
+main.exe
+main
+*.log
+
+# Editor: Bỏ qua cấu hình riêng của VS Code
+.vscode/
+.idea/

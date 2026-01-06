@@ -1,0 +1,76 @@
+# ============================================================================
+# IMMORTAL CHAT OS - Docker Compose Configuration
+# ============================================================================
+# Following .rulesgemini Tech Stack:
+# - Go 1.22-alpine (Application)
+# - MariaDB 11.4 LTS (Database - Hot Layer)
+# - Redis 7.2-alpine (Cache - Pub/Sub, Dedup, Queue)
+# - Cloudflare Tunnel (Networking - Mesh Topology)
+# ============================================================================
+
+services:
+  # Application Service - Go 1.22+
+  app:
+    image: golang:1.22-alpine
+    container_name: chat_os_app
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: sh -c "go mod tidy && go run cmd/server/main.go"
+    depends_on:
+      - db
+      - redis
+    networks:
+      - chat_net
+    ports:
+      - "8080:8080"
+
+  # Database Service - MariaDB 11.4 LTS
+  db:
+    image: mariadb:11.4
+    container_name: chat_os_db
+    env_file:
+      - .env
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASS}
+      MYSQL_DATABASE: ${DB_NAME}
+    networks:
+      - chat_net
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+
+  # Cache Service - Redis 7.2 Alpine
+  redis:
+    image: redis:7.2-alpine
+    container_name: chat_os_redis
+    networks:
+      - chat_net
+    ports:
+      - "6379:6379"
+
+  # Networking - Cloudflare Tunnel
+  # Per .rulesgemini Section 1: Mesh Topology via Cloudflare Tunnel
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: chat_os_tunnel
+    restart: unless-stopped
+    command: tunnel --url http://chat_os_app:8080
+    depends_on:
+      - app
+    networks:
+      - chat_net
+
+# Explicit Bridge Network Definition
+# Per technical specification: All services must be on same network
+# for stable DNS resolution (e.g., chat_os_db, chat_os_redis)
+networks:
+  chat_net:
+    driver: bridge
+
+# Persistent Volume for Database
+volumes:
+  db_data:

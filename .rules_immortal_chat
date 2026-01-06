@@ -1,0 +1,94 @@
+Dựa trên việc phân tích sâu toàn bộ bộ tài liệu kỹ thuật bạn cung cấp (đặc biệt là các file `core he thong loi.docx`, `corev2.docx`, và `Đặc tả API Chi tiết.docx`), tôi đã phát hiện một số điểm **cốt tử** còn thiếu trong bộ rule cũ (như Cấu trúc phản hồi chuẩn, Cơ chế Backpressure khi quá tải, và Quy tắc ID phân tán để tránh sập hệ thống).
+
+Dưới đây là phiên bản **FINALIZED** của bộ luật `.rulesgemini`. Tôi đã làm sạch các thẻ rác (`[cite_start]`), bổ sung các cơ chế bảo vệ từ tài liệu "Sự cố", và chuẩn hóa theo đúng kiến trúc Lục Giác.
+
+Hãy copy toàn bộ nội dung trong block code dưới đây vào file `.rulesgemini`.
+
+---
+
+### 📜 FILE: .rulesgemini (Phiên bản Hoàn Chỉnh)
+
+```markdown
+# IMMORTAL CHAT OS - SYSTEM CONSTITUTION & CODING RULES (FINAL V2.1)
+
+## 1. TECH STACK & INFRASTRUCTURE (GOLDEN STACK)
+- **Language:** Go (Golang) v1.22+. Ưu tiên sử dụng Standard Library (`net/http`) thay vì Framework nặng.
+- **Database:** MariaDB 11.4 LTS (Hot Layer).
+- **Cache:** Redis 7.2 Alpine (Pub/Sub, Dedup, Queue).
+- **Environment:** Docker Containerization (Alpine Linux base).
+- **Networking:** Mesh Topology qua Cloudflare Tunnel. Không mở Port Public (80/443).
+- **ID Strategy:** Bắt buộc cấu hình `auto_increment_increment` và `auto_increment_offset` khác nhau cho từng Node để tránh trùng ID khi gộp dữ liệu (Master-Master Conflict).
+
+## 2. ARCHITECTURAL PATTERNS (HEXAGONAL ARCHITECTURE)
+- **Structure Enforcement:**
+  - `internal/core`: Chứa Business Logic thuần túy (Service, Domain Models). KHÔNG import `database`, `http`, hay thư viện bên ngoài.
+  - `internal/adapters`: Chứa code giao tiếp (HTTP Handlers, SQL Repositories, Redis Client, Facebook Client).
+  - `internal/infra`: Chứa Config, Logger, Connection Pooling.
+- **Dependency Rule:** `Core` độc lập tuyệt đối. `Adapters` phụ thuộc vào `Core` thông qua Interfaces (Ports).
+
+## 3. DATA STRATEGY (FEDERATED & LOCAL-FIRST)
+- **Local-First:** Mọi dữ liệu (Tin nhắn, Log, Webhook) phải được lưu bền vững vào MariaDB Local ngay lập tức.
+- **Sync-Later:** Đồng bộ về Home Server là tác vụ chạy ngầm (Background), có cơ chế Retry.
+- **Data Lifecycle:**
+  - Bảng `messages`, `webhook_logs` bắt buộc có cột `is_synced` (BOOLEAN, Default 0).
+  - Chỉ update `is_synced = 1` khi nhận được xác nhận thành công từ Home Server.
+  - Dữ liệu nóng (Hot Data) lưu tại Local 7 ngày. Dữ liệu lạnh (Cold Data) nằm ở Home Server.
+
+## 4. INGRESS & WEBHOOK LOGIC (FIRE & FORGET)
+- **Performance:** API Webhook (`POST /webhook/:platform`) bắt buộc phản hồi `HTTP 200 OK` trong < 3 giây (Hard Limit).
+- **Flow:** Nhận JSON -> Validate HMAC -> Check Dedup -> Push to Queue/Channel -> Return 200 OK.
+- **Heavy Logic:** Tuyệt đối KHÔNG gọi AI, Upload File, hay Query phức tạp trong luồng Webhook chính.
+- **Deduplication:** Kiểm tra Redis Key `dedup:msg:{platform_msg_id}` (TTL 10 phút). Nếu tồn tại -> Return 200 OK ngay (Idempotency).
+- **Backpressure:** Khi CPU > 90%, chuyển sang chế độ "Store-Only" (Chỉ lưu Queue, không xử lý) để tránh sập Node.
+
+## 5. SELF-HEALING & WATCHDOG (AUTO-PURGE)
+- **Watchdog Service:** Chạy định kỳ (10 phút/lần).
+- **Purge Rules:** Chỉ thực hiện lệnh DELETE khi thỏa mãn ĐỦ 3 điều kiện:
+  1. Disk Usage > 70%.
+  2. Dữ liệu cũ hơn 7 ngày (Retention Policy).
+  3. `is_synced = 1` (Đã an toàn ở Home Server).
+- **Safety:** Xóa theo lô (Batch Limit 1000) để tránh khóa bảng (Table Lock). Tuyệt đối không xóa dữ liệu chưa Sync (`is_synced=0`).
+
+## 6. MESH COMMUNICATION & SECURITY
+- **Internal Auth:** Các API nội bộ (`/internal/*`) bắt buộc kiểm tra Header `X-Mesh-Secret` (Load từ `.env`).
+- **Orphan Mode:** Khi mất kết nối Tunnel về Home Server:
+  - Hệ thống vẫn phải nhận tin và Chat Realtime bình thường (Dùng Cache Local).
+  - Các thao tác nhạy cảm (Audit) lưu vào DB Local, chờ có mạng Replay sau.
+- **Kill Switch:** Kiểm tra biến Redis `SYSTEM_STATUS`. Nếu = `PANIC`, ngắt toàn bộ luồng Webhook để chống DDoS/Loop.
+
+## 7. CODING STANDARDS & API RESPONSE
+- **Response Envelope:** Mọi API JSON (trừ Webhook) phải trả về đúng định dạng:
+  ```json
+  {
+    "code": 200,
+    "message": "Success",
+    "data": {...},
+    "trace_id": "req_uuid"
+  }
+
+```
+
+* **Error Handling:** Sử dụng `recover()` trong mọi Goroutines để tránh App Crash. Log lỗi Critical về Telegram/Central Log.
+* **Configuration:** Load toàn bộ cấu hình từ biến môi trường (Environment Variables). Không hard-code Password/Token.
+
+```
+
+---
+
+### Phân tích các thay đổi & bổ sung quan trọng:
+
+1.  **Thêm quy tắc "ID Strategy" (Mục 1):**
+    * *Lý do:* Tài liệu `core he thong loi.docx` cảnh báo lỗi "Master-Master Conflict"[cite: 1905]. Nếu không set `auto_increment_offset`, dữ liệu từ các Node khi gộp về sẽ bị trùng ID khóa chính, làm sập Database. Đây là bổ sung sống còn.
+
+2.  **Cơ chế "Backpressure" (Mục 4):**
+    * [cite_start]*Lý do:* Tài liệu `core he thong loi.docx` nhắc đến lỗi "Tắc nghẽn Webhook" [cite: 1918] [cite_start]và giải pháp "Store-Only"[cite: 447]. Rule này giúp Server không bị chết khi Facebook gửi quá nhiều tin cùng lúc.
+
+3.  **Cấu trúc phản hồi chuẩn "Response Envelope" (Mục 7):**
+    * [cite_start]*Lý do:* Tài liệu `Đặc tả API Chi tiết.docx` [cite: 2223] quy định mọi API phải trả về JSON có `code`, `message`, `data`. Nếu AI code tự do (trả về raw string hoặc JSON không chuẩn), Frontend React sẽ bị lỗi khi parse.
+
+4.  **Kill Switch (Mục 6):**
+    * [cite_start]*Lý do:* Để xử lý kịch bản "Bot Loop" (Bot tự chat với nhau vô tận) được nhắc trong `HỒ SƠ THIẾT KẾ`[cite: 696].
+
+Bộ rule này giờ đây đã bao phủ cả **Kiến trúc**, **Dữ liệu**, **Quy trình xử lý lỗi** và **Giao diện API**. Bạn có thể yên tâm đưa cho AI sử dụng.
+
+```
