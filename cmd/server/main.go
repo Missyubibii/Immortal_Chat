@@ -14,6 +14,8 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/redis/go-redis/v9"
 
+	"immortal-chat/internal/adapters/handler"
+	"immortal-chat/internal/adapters/repository"
 	"immortal-chat/internal/config"
 	"immortal-chat/internal/core/services"
 )
@@ -43,6 +45,40 @@ func main() {
 	defer rdb.Close()
 	fmt.Println("✓ Redis connection established")
 
+	// ==================================================================
+	// Phase 2: Initialize Repositories and Services
+	// ==================================================================
+	fmt.Println("[4/6] Initializing repositories...")
+	
+	// Repository adapters (implementing ports)
+	mariadbRepo := repository.NewMariaDBRepository(db)
+	redisRepo := repository.NewRedisRepository(rdb)
+	
+	fmt.Println("✓ Repositories initialized")
+	
+	fmt.Println("[5/6] Initializing services...")
+	
+	// Core services (business logic)
+	dispatcher := services.NewDispatcher(
+		mariadbRepo, // WebhookRepository
+		mariadbRepo, // MessageRepository
+		mariadbRepo, // ConversationRepository
+		redisRepo,   // DedupRepository
+	)
+	
+	fmt.Println("✓ Services initialized")
+	
+	fmt.Println("[6/6] Initializing HTTP handlers...")
+	
+	// HTTP handlers
+	webhookHandler := handler.NewWebhookHandler(
+		dispatcher,
+		cfg.Facebook.AppSecret,
+		cfg.Facebook.VerifyToken,
+	)
+	
+	fmt.Println("✓ Handlers initialized")
+
 	// 4. Infrastructure Ready!
 	fmt.Println("\n✅ Cell Infrastructure Ready\n")
 
@@ -50,9 +86,8 @@ func main() {
 	// Per .rulesgemini Section 5: Self-Healing & Watchdog
 	services.RunWatchdog(db)
 
-	// 5. Start HTTP Server (Keep process alive + health endpoint)
-	// Following .rulesgemini Section 4: Webhook endpoints will be added in Phase 2
-	startHTTPServer(cfg.App.Port)
+	// 5. Start HTTP Server (Keep process alive + webhook endpoints)
+	startHTTPServer(cfg.App.Port, webhookHandler)
 }
 
 // connectMariaDB attempts to connect to MariaDB with retry logic
@@ -119,9 +154,9 @@ func connectRedis(cfg config.RedisConfig, maxRetries int, retryDelay time.Durati
 	return nil // unreachable
 }
 
-// startHTTPServer starts the HTTP server with basic health endpoint
+// startHTTPServer starts the HTTP server with webhook endpoints
 // Following .rulesgemini: Standard library net/http (no heavy frameworks)
-func startHTTPServer(port int) {
+func startHTTPServer(port int, webhookHandler *handler.WebhookHandler) {
 	// Health check endpoint
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -129,12 +164,25 @@ func startHTTPServer(port int) {
 		fmt.Fprintf(w, `{"code":200,"message":"Immortal Chat OS is running","data":null}`)
 	})
 
-	// Webhook endpoints will be added in Phase 2
-	// Per .rulesgemini Section 4: POST /webhook/:platform
+	// ====================================================================
+	// Phase 2: Facebook Webhook Endpoints
+	// ====================================================================
+	
+	// GET /webhook/facebook - Webhook Verification
+	http.HandleFunc("/webhook/facebook", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			webhookHandler.HandleFacebookVerify(w, r)
+		} else if r.Method == http.MethodPost {
+			webhookHandler.HandleFacebookEvent(w, r)
+		} else {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		}
+	})
 
 	addr := fmt.Sprintf(":%d", port)
 	fmt.Printf("[HTTP] Server listening on %s\n", addr)
 	fmt.Println("[HTTP] Health check: http://localhost:8080/")
+	fmt.Println("[HTTP] Facebook webhook: http://localhost:8080/webhook/facebook")
 	fmt.Println("[READY] Press Ctrl+C to stop\n")
 
 	if err := http.ListenAndServe(addr, nil); err != nil {

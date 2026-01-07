@@ -27,11 +27,19 @@ type AppConfig struct {
 	Port int
 }
 
+// FacebookConfig holds Facebook webhook configuration
+// Per Phase 2: Webhook verification and HMAC validation
+type FacebookConfig struct {
+	AppSecret   string // For HMAC SHA256 signature validation
+	VerifyToken string // For webhook verification handshake
+}
+
 // Config aggregates all configuration sections
 type Config struct {
-	DB    DBConfig
-	Redis RedisConfig
-	App   AppConfig
+	DB       DBConfig
+	Redis    RedisConfig
+	App      AppConfig
+	Facebook FacebookConfig
 }
 
 // LoadConfig reads configuration from environment variables
@@ -56,6 +64,18 @@ func LoadConfig() (*Config, error) {
 
 	// Application Configuration
 	cfg.App.Port = getEnvAsInt("APP_PORT", 8080)
+
+	// Facebook Configuration (Phase 2)
+	cfg.Facebook.AppSecret = getEnv("FB_APP_SECRET", "")
+	cfg.Facebook.VerifyToken = getEnv("FB_VERIFY_TOKEN", "")
+
+	// Validate critical Facebook credentials
+	if cfg.Facebook.AppSecret == "" {
+		return nil, fmt.Errorf("FB_APP_SECRET environment variable is required")
+	}
+	if cfg.Facebook.VerifyToken == "" {
+		return nil, fmt.Errorf("FB_VERIFY_TOKEN environment variable is required")
+	}
 
 	return cfg, nil
 }

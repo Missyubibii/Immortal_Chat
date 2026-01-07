@@ -36,6 +36,8 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASS}
       MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER} # Lấy giá trị 'admin' từ .env map vào đây
+      MYSQL_PASSWORD: ${DB_PASS}
     networks:
       - chat_net
     ports:
