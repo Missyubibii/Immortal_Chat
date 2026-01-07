@@ -15,10 +15,13 @@ services:
     container_name: chat_os_app
     env_file:
       - .env
+    environment:
+      - FB_VERIFY_TOKEN=${FB_VERIFY_TOKEN}
+      - FB_APP_SECRET=${FB_APP_SECRET}
     volumes:
       - .:/app
     working_dir: /app
-    command: sh -c "go mod tidy && go run cmd/server/main.go"
+    command: sh -c "go mod tidy && sleep 5 && go run cmd/server/main.go"
     depends_on:
       - db
       - redis
@@ -34,10 +37,10 @@ services:
     env_file:
       - .env
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASS}
-      MYSQL_DATABASE: ${DB_NAME}
-      MYSQL_USER: ${DB_USER} # Lấy giá trị 'admin' từ .env map vào đây
-      MYSQL_PASSWORD: ${DB_PASS}
+      MARIADB_ROOT_PASSWORD: ${DB_PASS}
+      MARIADB_DATABASE: ${DB_NAME}
+      MARIADB_USER: ${DB_USER}
+      MARIADB_PASSWORD: ${DB_PASS}
     networks:
       - chat_net
     ports:
@@ -54,13 +57,26 @@ services:
     ports:
       - "6379:6379"
 
+  nginx:
+    image: nginx:alpine
+    container_name: chat_os_nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./web/static:/usr/share/nginx/html
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - app
+    networks:
+      - chat_net
+
   # Networking - Cloudflare Tunnel
   # Per .rulesgemini Section 1: Mesh Topology via Cloudflare Tunnel
   tunnel:
     image: cloudflare/cloudflared:latest
     container_name: chat_os_tunnel
     restart: unless-stopped
-    command: tunnel --url http://chat_os_app:8080
+    # command: tunnel --url http://chat_os_app:8080
     depends_on:
       - app
     networks:
@@ -76,3 +92,6 @@ networks:
 # Persistent Volume for Database
 volumes:
   db_data:
+
+
+
