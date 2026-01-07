@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=5.0"
+    />
+    <title>Immortal Chat OS - Dashboard</title>
+    <link rel="stylesheet" href="/css/dashboard.css" />
+  </head>
+  <body>
+    <!-- Mobile Header -->
+    <header class="mobile-header">
+      <h1>🧬 Immortal Chat OS</h1>
+      <div class="header-info">
+        <span class="tenant-badge">Tenant #<span id="tenantId">1</span></span>
+        <button class="panic-btn" id="panicBtn" title="Emergency: Disable AI">
+          🚨
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="container">
+      <!-- Sidebar (Desktop) / Top Section (Mobile) -->
+      <aside class="sidebar" id="sidebar">
+        <!-- Cell Health Card -->
+        <div class="card health-card">
+          <h3>🩺 Cell Health</h3>
+          <div class="metric">
+            <label>CPU</label>
+            <div class="progress-bar">
+              <div class="progress" id="cpuProgress"></div>
+            </div>
+            <span class="value" id="cpuValue">-- %</span>
+          </div>
+          <div class="metric">
+            <label>RAM</label>
+            <div class="progress-bar">
+              <div class="progress" id="ramProgress"></div>
+            </div>
+            <span class="value" id="ramValue">-- GB</span>
+          </div>
+          <div class="metric">
+            <label>Disk</label>
+            <div class="progress-bar">
+              <div class="progress disk-progress" id="diskProgress"></div>
+            </div>
+            <span class="value" id="diskValue">-- %</span>
+          </div>
+        </div>
+
+        <!-- Sync Status Card -->
+        <div class="card sync-card">
+          <h3>🔄 Sync Status</h3>
+          <div class="sync-info">
+            <div class="sync-row">
+              <span>Pending:</span>
+              <strong id="syncPending">--</strong>
+            </div>
+            <div class="sync-row">
+              <span>Health:</span>
+              <span class="status-dot" id="syncHealth"></span>
+            </div>
+            <div class="sync-row">
+              <span>Last sync:</span>
+              <small id="syncTime">--</small>
+            </div>
+          </div>
+        </div>
+
+        <!-- Platform List -->
+        <div class="card platforms-card">
+          <h3>📱 Platforms</h3>
+          <div class="platform-list" id="platformList">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="main-content">
+        <!-- Platform Details -->
+        <div class="card platform-detail" id="platformDetail">
+          <div class="platform-header">
+            <span class="platform-icon" id="detailIcon">📘</span>
+            <div>
+              <h2 id="detailName">Facebook Messenger</h2>
+              <div class="status-row">
+                <span class="status-dot online" id="detailStatus"></span>
+                <span id="detailStatusText">Connected</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Statistics Grid -->
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-value" id="messagesTotal">--</div>
+              <div class="stat-label">Total Messages</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="messagesToday">--</div>
+              <div class="stat-label">Today</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="pendingSync">--</div>
+              <div class="stat-label">Pending Sync</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="successRate">--</div>
+              <div class="stat-label">Success Rate</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- System Info -->
+        <div class="card system-info">
+          <h3>⚙️ System Info</h3>
+          <div class="info-grid">
+            <div class="info-row">
+              <span>Status:</span>
+              <strong class="status-online" id="systemStatus">Online</strong>
+            </div>
+            <div class="info-row">
+              <span>Uptime:</span>
+              <strong id="systemUptime">--</strong>
+            </div>
+            <div class="info-row">
+              <span>Version:</span>
+              <strong id="systemVersion">--</strong>
+            </div>
+            <div class="info-row">
+              <span>Goroutines:</span>
+              <strong id="goroutines">--</strong>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Bottom Navigation (Mobile) -->
+    <nav class="bottom-nav">
+      <button class="nav-btn active" data-view="dashboard">
+        <span>📊</span>
+        <small>Dashboard</small>
+      </button>
+      <button class="nav-btn" data-view="platforms">
+        <span>📱</span>
+        <small>Platforms</small>
+      </button>
+      <button class="nav-btn" data-view="health">
+        <span>🩺</span>
+        <small>Health</small>
+      </button>
+    </nav>
+
+    <script src="/js/dashboard.js"></script>
+  </body>
+</html>

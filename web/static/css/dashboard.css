@@ -1,0 +1,440 @@
+/* =============================================================================
+   Immortal Chat OS Dashboard - Mobile-First Responsive Design
+   Design Philosophy: Start with mobile (320px) → Tablet (768px+) → Desktop (1024px+)
+   ============================================================================= */
+
+/* CSS Variables - Color System from Technical Spec */
+:root {
+  /* Brand Colors */
+  --immortal-blue: #1e3a8a;
+  --vibrant-green: #10b981;
+  --warning-amber: #f59e0b;
+  --error-red: #ef4444;
+  --panic-crimson: #dc2626;
+
+  /* Backgrounds */
+  --bg-dark-1: #0f172a;
+  --bg-dark-2: #1e293b;
+  --card-glass: rgba(30, 41, 59, 0.7);
+  --card-border: rgba(148, 163, 184, 0.1);
+
+  /* Status Colors */
+  --status-online: #10b981;
+  --status-warning: #f59e0b;
+  --status-error: #ef4444;
+  --status-offline: #6b7280;
+
+  /* Disk Health Colors */
+  --disk-safe: #10b981;
+  --disk-warning: #f59e0b;
+  --disk-critical: #ef4444;
+
+  /* Spacing */
+  --spacing-xs: 0.5rem;
+  --spacing-sm: 0.75rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+}
+
+/* =============================================================================
+   BASE STYLES - Mobile First (320px+)
+   ============================================================================= */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  background: linear-gradient(
+    135deg,
+    var(--bg-dark-1) 0%,
+    var(--bg-dark-2) 100%
+  );
+  color: #f1f5f9;
+  min-height: 100vh;
+  padding-bottom: 70px; /* Space for bottom nav */
+  overflow-x: hidden;
+}
+
+/* Mobile Header */
+.mobile-header {
+  background: var(--card-glass);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--card-border);
+  padding: var(--spacing-md);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.mobile-header h1 {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.header-info {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: center;
+}
+
+.tenant-badge {
+  background: var(--immortal-blue);
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.panic-btn {
+  background: var(--panic-crimson);
+  border: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  font-size: 1.25rem;
+  cursor: pointer;
+  transition: transform 0.2s;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+}
+
+.panic-btn:active {
+  transform: scale(0.95);
+}
+
+/* Container */
+.container {
+  padding: var(--spacing-md);
+  max-width: 100%;
+}
+
+/* Cards - Glassmorphism */
+.card {
+  background: var(--card-glass);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--card-border);
+  border-radius: 1rem;
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15);
+}
+
+.card h3 {
+  font-size: 1rem;
+  margin-bottom: var(--spacing-md);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+/* Health Card - Mobile */
+.metric {
+  margin-bottom: var(--spacing-md);
+}
+
+.metric label {
+  display: block;
+  font-size: 0.875rem;
+  margin-bottom: var(--spacing-xs);
+  color: #94a3b8;
+}
+
+.progress-bar {
+  height: 8px;
+  background: rgba(148, 163, 184, 0.2);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: var(--spacing-xs);
+}
+
+.progress {
+  height: 100%;
+  background: var(--vibrant-green);
+  transition: width 0.5s ease, background-color 0.3s;
+  border-radius: 4px;
+}
+
+.disk-progress.warning {
+  background: var(--disk-warning);
+}
+
+.disk-progress.critical {
+  background: var(--disk-critical);
+}
+
+.metric .value {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--vibrant-green);
+}
+
+/* Sync Card */
+.sync-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.sync-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.875rem;
+}
+
+.status-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot.healthy {
+  background: var(--status-online);
+  box-shadow: 0 0 8px var(--status-online);
+}
+
+.status-dot.lagging {
+  background: var(--status-warning);
+  box-shadow: 0 0 8px var(--status-warning);
+}
+
+.status-dot.critical {
+  background: var(--status-error);
+  box-shadow: 0 0 8px var(--status-error);
+}
+
+/* Platform List */
+.platform-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.platform-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.platform-item:active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.platform-item .status-dot {
+  flex-shrink: 0;
+}
+
+.platform-icon {
+  font-size: 1.5rem;
+}
+
+.platform-name {
+  flex: 1;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* Platform Detail */
+.platform-header {
+  display: flex;
+  gap: var(--spacing-md);
+  align-items: center;
+  margin-bottom: var(--spacing-lg);
+}
+
+.platform-header .platform-icon {
+  font-size: 2.5rem;
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  margin-top: var(--spacing-xs);
+}
+
+.status-online {
+  color: var(--status-online);
+}
+
+/* Stats Grid - Mobile: 2 columns */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-md);
+}
+
+.stat-card {
+  background: rgba(255, 255, 255, 0.05);
+  padding: var(--spacing-md);
+  border-radius: 0.75rem;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--vibrant-green);
+  margin-bottom: var(--spacing-xs);
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+/* System Info */
+.info-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.875rem;
+}
+
+/* Bottom Navigation - Mobile Only */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--card-glass);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--card-border);
+  display: flex;
+  justify-content: space-around;
+  padding: var(--spacing-sm) 0;
+  z-index: 100;
+}
+
+.nav-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  cursor: pointer;
+  transition: color 0.2s;
+  padding: var(--spacing-xs);
+}
+
+.nav-btn span {
+  font-size: 1.5rem;
+}
+
+.nav-btn small {
+  font-size: 0.625rem;
+}
+
+.nav-btn.active {
+  color: var(--vibrant-green);
+}
+
+/* =============================================================================
+   TABLET+ (768px and up)
+   ============================================================================= */
+
+@media (min-width: 768px) {
+  body {
+    padding-bottom: 0;
+  }
+
+  .bottom-nav {
+    display: none;
+  }
+
+  .container {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: var(--spacing-lg);
+    padding: var(--spacing-lg);
+  }
+
+  .sidebar {
+    position: sticky;
+    top: var(--spacing-lg);
+    height: fit-content;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* =============================================================================
+   DESKTOP (1024px and up)
+   ============================================================================= */
+
+@media (min-width: 1024px) {
+  .container {
+    grid-template-columns: 320px 1fr;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .panic-btn:hover {
+    transform: scale(1.05);
+  }
+
+  .platform-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .nav-btn:hover {
+    color: var(--vibrant-green);
+  }
+}
+
+/* =============================================================================
+   ANIMATIONS
+   ============================================================================= */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.card {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.status-dot.healthy {
+  animation: pulse 2s infinite;
+}

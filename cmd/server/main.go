@@ -77,6 +77,9 @@ func main() {
 		cfg.Facebook.VerifyToken,
 	)
 	
+	// Dashboard handler (Phase 3)
+	dashboardHandler := handler.NewDashboardHandler(db, rdb)
+	
 	fmt.Println("✓ Handlers initialized")
 
 	// 4. Infrastructure Ready!
@@ -87,7 +90,7 @@ func main() {
 	services.RunWatchdog(db)
 
 	// 5. Start HTTP Server (Keep process alive + webhook endpoints)
-	startHTTPServer(cfg.App.Port, webhookHandler)
+	startHTTPServer(cfg.App.Port, webhookHandler, dashboardHandler)
 }
 
 // connectMariaDB attempts to connect to MariaDB with retry logic
@@ -154,16 +157,23 @@ func connectRedis(cfg config.RedisConfig, maxRetries int, retryDelay time.Durati
 	return nil // unreachable
 }
 
-// startHTTPServer starts the HTTP server with webhook endpoints
+// startHTTPServer starts the HTTP server with webhook and dashboard endpoints
 // Following .rulesgemini: Standard library net/http (no heavy frameworks)
-func startHTTPServer(port int, webhookHandler *handler.WebhookHandler) {
-	// Health check endpoint
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, `{"code":200,"message":"Immortal Chat OS is running","data":null}`)
-	})
-
+func startHTTPServer(port int, webhookHandler *handler.WebhookHandler, dashboardHandler *handler.DashboardHandler) {
+	// ====================================================================
+	// Static Files (Dashboard UI)
+	// ====================================================================
+	fs := http.FileServer(http.Dir("./web/static"))
+	http.Handle("/", fs)
+	
+	// ====================================================================
+	// Dashboard API Endpoints (Phase 3)
+	// ====================================================================
+	http.HandleFunc("/api/status", dashboardHandler.GetStatus)
+	http.HandleFunc("/api/system/metrics", dashboardHandler.GetSystemMetrics)
+	http.HandleFunc("/api/platforms", dashboardHandler.GetPlatforms)
+	http.HandleFunc("/api/sync/status", dashboardHandler.GetSyncStatus)
+	
 	// ====================================================================
 	// Phase 2: Facebook Webhook Endpoints
 	// ====================================================================
@@ -181,7 +191,9 @@ func startHTTPServer(port int, webhookHandler *handler.WebhookHandler) {
 
 	addr := fmt.Sprintf(":%d", port)
 	fmt.Printf("[HTTP] Server listening on %s\n", addr)
-	fmt.Println("[HTTP] Health check: http://localhost:8080/")
+	fmt.Println("[HTTP] Dashboard: http://localhost:8080/")
+	fmt.Println("[HTTP] API Status: http://localhost:8080/api/status")
+	fmt.Println("[HTTP] System Metrics: http://localhost:8080/api/system/metrics")
 	fmt.Println("[HTTP] Facebook webhook: http://localhost:8080/webhook/facebook")
 	fmt.Println("[READY] Press Ctrl+C to stop\n")
 
