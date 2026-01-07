@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -167,12 +168,26 @@ func startHTTPServer(port int, webhookHandler *handler.WebhookHandler, dashboard
 	http.Handle("/", fs)
 	
 	// ====================================================================
-	// Dashboard API Endpoints (Phase 3)
+	// Dashboard API Endpoints (Phase 2 - Monitoring)
 	// ====================================================================
 	http.HandleFunc("/api/status", dashboardHandler.GetStatus)
 	http.HandleFunc("/api/system/metrics", dashboardHandler.GetSystemMetrics)
 	http.HandleFunc("/api/platforms", dashboardHandler.GetPlatforms)
 	http.HandleFunc("/api/sync/status", dashboardHandler.GetSyncStatus)
+	
+	// ====================================================================
+	// Phase 3: Conversation Management & Reply APIs
+	// ====================================================================
+	http.HandleFunc("/api/conversations", dashboardHandler.GetConversations)
+	http.HandleFunc("/api/conversations/", func(w http.ResponseWriter, r *http.Request) {
+		// Route: /api/conversations/{id}/messages
+		if strings.HasSuffix(r.URL.Path, "/messages") {
+			dashboardHandler.GetConversationMessages(w, r)
+		} else {
+			http.NotFound(w, r)
+		}
+	})
+	http.HandleFunc("/api/messages/reply", dashboardHandler.SendReply)
 	
 	// ====================================================================
 	// Phase 2: Facebook Webhook Endpoints

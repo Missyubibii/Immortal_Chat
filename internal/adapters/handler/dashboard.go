@@ -4,10 +4,16 @@ package handler
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"immortal-chat/internal/adapters/gateway"
+	"immortal-chat/internal/adapters/repository"
+	"immortal-chat/internal/core/domain"
 	"log/slog"
 	"net/http"
 	"runtime"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -334,4 +340,252 @@ func getTimeOrNow(t sql.NullTime) time.Time {
 		return t.Time
 	}
 	return time.Now()
+}
+
+// ============================================================================
+// Phase 3: Conversation Management & Reply APIs
+// ============================================================================
+
+// GetConversations returns list of conversations for a specific page
+// GET /api/conversations?page_id=xxx
+func (h *DashboardHandler) GetConversations(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	
+	// Get page_id from query params
+	pageID := r.URL.Query().Get("page_id")
+	if pageID == "" {
+		// If no page_id provided, use default (first active page)
+		// In production, this should come from auth context
+		pageID = "770225079500025" // TODO: Get from logged-in user's context
+	}
+	
+	// Call repository
+	repo := h.db
+	mariadbRepo := repository.NewMariaDBRepository(repo)
+	conversations, err := mariadbRepo.GetConversations(ctx, pageID)
+	
+	if err != nil {
+		slog.Error("Failed to get conversations",
+			"error", err,
+			"page_id", pageID,
+		)
+		writeJSON(w, http.StatusInternalServerError, InternalErrorResponse("Failed to load conversations"))
+		return
+	}
+	
+	// Return with Response Envelope
+	writeJSON(w, http.StatusOK, NewSuccessResponse(conversations))
+}
+
+// GetConversationMessages returns message history for a conversation
+// GET /api/conversations/{id}/messages
+// Enhancement: Auto-marks conversation as read when Admin opens chat
+func (h *DashboardHandler) GetConversationMessages(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	
+	// Extract conversation ID from URL path
+	// Since we're not using a router, we'll parse manually
+	// URL format: /api/conversations/123/messages
+	pathParts := strings.Split(r.URL.Path, "/")
+	if len(pathParts) < 4 {
+		writeJSON(w, http.StatusBadRequest, BadRequestResponse("Invalid URL format"))
+		return
+	}
+	
+	conversationIDStr := pathParts[3] // /api/conversations/[ID]/messages
+	conversationID, err := strconv.ParseInt(conversationIDStr, 10, 64)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, BadRequestResponse("Invalid conversation ID"))
+		return
+	}
+	
+	// Call repository
+	repo := h.db
+	mariadbRepo := repository.NewMariaDBRepository(repo)
+	messages, err := mariadbRepo.GetMessages(ctx, conversationID)
+	
+	if err != nil {
+		slog.Error("Failed to get messages",
+			"error", err,
+			"conversation_id", conversationID,
+		)
+		writeJSON(w, http.StatusInternalServerError, InternalErrorResponse("Failed to load messages"))
+		return
+	}
+	
+	// ENHANCEMENT: Auto-mark conversation as read when Admin opens chat
+	// This prevents perpetual "unread" badges in UI
+	if err := mariadbRepo.MarkConversationAsRead(ctx, conversationID); err != nil {
+		// Log but don't fail request (non-critical)
+		slog.Warn("Failed to mark conversation as read",
+			"error", err,
+			"conversation_id", conversationID,
+		)
+	}
+	
+	// Return with Response Envelope
+	writeJSON(w, http.StatusOK, NewSuccessResponse(messages))
+}
+
+// ReplyRequest represents the JSON payload for POST /api/messages/reply
+type ReplyRequest struct {
+	ConversationID int64  `json:"conversation_id"`
+	Text           string `json:"text"`
+}
+
+// SendReply handles admin replies to customers via Facebook
+// POST /api/messages/reply
+// Body: {"conversation_id": 123, "text": "Hello!"}
+// 
+// ENHANCEMENTS:
+// - Auto-deactivates page on token expiry (ErrTokenExpired)
+// - User-friendly error messages (not technical details)
+// - Proper error recovery per "Core hệ thống lỗi"
+func (h *DashboardHandler) SendReply(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	
+	// Parse request body
+	var req ReplyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, BadRequestResponse("Dữ liệu không hợp lệ"))
+		return
+	}
+	
+	// Validate input
+	if req.ConversationID == 0 {
+		writeJSON(w, http.StatusBadRequest, BadRequestResponse("Thiếu ID hội thoại"))
+		return
+	}
+	
+	if strings.TrimSpace(req.Text) == "" {
+		writeJSON(w, http.StatusBadRequest, BadRequestResponse("Nội dung tin nhắn không được để trống"))
+		return
+	}
+	
+	// Step 1: Get conversation details to find page_id and platform_id
+	mariadbRepo := repository.NewMariaDBRepository(h.db)
+	
+	var platformID, pageID string
+	query := `SELECT platform_id, page_id FROM conversations WHERE id = ?`
+	err := h.db.QueryRowContext(ctx, query, req.ConversationID).Scan(&platformID, &pageID)
+	
+	if err == sql.ErrNoRows {
+		writeJSON(w, http.StatusNotFound, NotFoundResponse("Không tìm thấy hội thoại"))
+		return
+	}
+	
+	if err != nil {
+		slog.Error("Failed to get conversation details",
+			"error", err,
+			"conversation_id", req.ConversationID,
+		)
+		writeJSON(w, http.StatusInternalServerError, InternalErrorResponse("Lỗi hệ thống khi tra cứu hội thoại"))
+		return
+	}
+	
+	// Step 2: Get page access token from database
+	accessToken, err := mariadbRepo.GetPageAccessToken(ctx, pageID)
+	if err != nil {
+		slog.Error("Failed to get page access token",
+			"error", err,
+			"page_id", pageID,
+		)
+		writeJSON(w, http.StatusInternalServerError, InternalErrorResponse("Lỗi cấu hình Fanpage. Vui lòng liên hệ quản trị viên"))
+		return
+	}
+	
+	// Step 3: Send message via Facebook API
+	fbClient := gateway.NewFacebookClient()
+	err = fbClient.SendReply(platformID, accessToken, req.Text)
+	
+	if err != nil {
+		// CRITICAL: Handle token death per "Core hệ thống lỗi"
+		if errors.Is(err, gateway.ErrTokenExpired) {
+			// Auto-deactivate page to prevent futile retries
+			if deactivateErr := mariadbRepo.DeactivatePage(ctx, pageID); deactivateErr != nil {
+				slog.Error("Failed to deactivate page after token expiry",
+					"error", deactivateErr,
+					"page_id", pageID,
+				)
+			}
+			
+			slog.Warn("🔴 PAGE AUTO-DEACTIVATED",
+				"page_id", pageID,
+				"conversation_id", req.ConversationID,
+				"reason", "Token expired",
+			)
+			
+			// Return user-friendly message
+			writeJSON(w, http.StatusBadRequest, BadRequestResponse(
+				"Fanpage đã mất kết nối với Facebook. Vui lòng kết nối lại trong phần Cài đặt",
+			))
+			return
+		}
+		
+		// Handle rate limiting
+		if errors.Is(err, gateway.ErrRateLimited) {
+			writeJSON(w, http.StatusTooManyRequests, APIResponse{
+				Code:    429,
+				Message: "Bạn đang gửi tin quá nhanh. Vui lòng chờ vài giây rồi thử lại",
+				Data:    nil,
+			})
+			return
+		}
+		
+		// Handle permission errors
+		if errors.Is(err, gateway.ErrPermissionDenied) {
+			writeJSON(w, http.StatusForbidden, APIResponse{
+				Code:    403,
+				Message: "Fanpage không có quyền gửi tin nhắn. Vui lòng kiểm tra cài đặt Facebook",
+				Data:    nil,
+			})
+			return
+		}
+		
+		// Generic Facebook error (network, timeout, etc.)
+		slog.Error("Failed to send message via Facebook",
+			"error", err,
+			"conversation_id", req.ConversationID,
+		)
+		writeJSON(w, http.StatusInternalServerError, InternalErrorResponse(
+			"Không thể gửi tin nhắn. Vui lòng thử lại sau",
+		))
+		return
+	}
+	
+	// Step 4: Save outbound message to database
+	// TODO: Get staff_id from JWT context instead of hardcoding
+	outboundMsg := &domain.Message{
+		ConversationID: req.ConversationID,
+		SenderID:       ptr("admin"), // TODO: Replace with actual staff_id from auth
+		SenderType:     domain.SenderTypeAgent,
+		Content:        &req.Text,
+	}
+	
+	if err := mariadbRepo.SaveOutboundMessage(ctx, outboundMsg); err != nil {
+		// Log error but don't fail the request (message was already sent to Facebook)
+		slog.Warn("Failed to save outbound message to DB",
+			"error", err,
+			"conversation_id", req.ConversationID,
+		)
+	}
+	
+	// Step 5: Update conversation's last message
+	if err := mariadbRepo.UpdateConversationLastMessage(ctx, req.ConversationID, req.Text); err != nil {
+		slog.Warn("Failed to update conversation last message",
+			"error", err,
+		)
+	}
+	
+	// Return success with user-friendly message
+	writeJSON(w, http.StatusOK, NewSuccessResponse(map[string]interface{}{
+		"status":          "sent",
+		"conversation_id": req.ConversationID,
+		"message":         "Tin nhắn đã được gửi thành công",
+	}))
+}
+
+// Helper to create string pointer
+func ptr(s string) *string {
+	return &s
 }

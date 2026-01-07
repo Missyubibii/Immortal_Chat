@@ -92,6 +92,3 @@ networks:
 # Persistent Volume for Database
 volumes:
   db_data:
-
-
-
