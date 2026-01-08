@@ -1,330 +1,306 @@
-// Immortal Chat OS Dashboard - Main JavaScript
-// Mobile-first, real-time dashboard with API integration
+const API_BASE = "/api";
+let currentConversationId = null;
+let refreshTimer = null;
 
-class Dashboard {
-  constructor() {
-    this.apiBase = "/api";
-    this.refreshInterval = 5000; // 5 seconds
-    this.timers = [];
-    this.init();
-  }
+document.addEventListener("DOMContentLoaded", () => {
+  // 1. Init UI
+  switchView("dashboard");
 
-  init() {
-    console.log("🧬 Immortal Chat OS Dashboard initializing...");
+  // 2. Start Real Monitoring (Giống file gốc)
+  loadAllSystemData();
+  refreshTimer = setInterval(loadAllSystemData, 5000); // 5s refresh
 
-    // Initial data load
-    this.loadAllData();
+  // 3. Event Listeners
+  setupEventListeners();
+});
 
-    // Setup auto-refresh
-    this.startAutoRefresh();
+// --- CORE SYSTEM LOGIC (FROM OLD DASHBOARD.JS) ---
 
-    // Setup event listeners
-    this.setupEventListeners();
-
-    console.log("✅ Dashboard ready");
-  }
-
-  async loadAllData() {
-    try {
-      await Promise.all([
-        this.loadSystemStatus(),
-        this.loadSystemMetrics(),
-        this.loadPlatforms(),
-        this.loadSyncStatus(),
-      ]);
-    } catch (error) {
-      console.error("Failed to load dashboard data:", error);
-      this.showError("Failed to connect to server");
-    }
-  }
-
-  async fetchAPI(endpoint) {
-    const response = await fetch(`${this.apiBase}/${endpoint}`);
-    if (!response.ok) {
-      throw new Error(`API error: ${response.statusText}`);
-    }
-    return response.json();
-  }
-
-  async loadSystemStatus() {
-    try {
-      const data = await this.fetchAPI("status");
-
-      document.getElementById("systemStatus").textContent = data.online
-        ? "Online"
-        : "Offline";
-      document.getElementById("systemUptime").textContent = data.uptime;
-      document.getElementById("systemVersion").textContent = data.version;
-      document.getElementById("tenantId").textContent = data.tenant_id;
-    } catch (error) {
-      console.error("Failed to load system status:", error);
-    }
-  }
-
-  async loadSystemMetrics() {
-    try {
-      const data = await this.fetchAPI("system/metrics");
-
-      // CPU
-      this.updateProgress(
-        "cpuProgress",
-        data.cpu_percent,
-        "cpuValue",
-        `${data.cpu_percent.toFixed(1)}%`
-      );
-
-      // RAM
-      const ramPercent = (data.ram_used_gb / data.ram_total_gb) * 100;
-      this.updateProgress(
-        "ramProgress",
-        ramPercent,
-        "ramValue",
-        `${data.ram_used_gb.toFixed(1)} / ${data.ram_total_gb.toFixed(1)} GB`
-      );
-
-      // Disk (with color coding)
-      const diskProgress = document.getElementById("diskProgress");
-      this.updateProgress(
-        "diskProgress",
-        data.disk_percent,
-        "diskValue",
-        `${data.disk_percent.toFixed(1)}% (${data.disk_used_gb.toFixed(1)} GB)`
-      );
-
-      // Color code disk based on usage
-      diskProgress.classList.remove("warning", "critical");
-      if (data.disk_warning_level === "warning") {
-        diskProgress.classList.add("warning");
-      } else if (data.disk_warning_level === "critical") {
-        diskProgress.classList.add("critical");
-      }
-
-      // Goroutines
-      document.getElementById("goroutines").textContent = data.goroutines_count;
-    } catch (error) {
-      console.error("Failed to load system metrics:", error);
-    }
-  }
-
-  async loadPlatforms() {
-    try {
-      const platforms = await this.fetchAPI("platforms");
-
-      // Render platform list
-      const platformList = document.getElementById("platformList");
-      platformList.innerHTML = platforms
-        .map(
-          (p) => `
-                <div class="platform-item" data-platform-id="${p.id}">
-                    <span class="status-dot ${this.getStatusClass(
-                      p.status
-                    )}"></span>
-                    <span class="platform-icon">${this.getPlatformIcon(
-                      p.platform
-                    )}</span>
-                    <span class="platform-name">${p.name}</span>
-                </div>
-            `
-        )
-        .join("");
-
-      // Load first platform details
-      if (platforms.length > 0) {
-        this.loadPlatformDetails(platforms[0]);
-      }
-
-      // Add click handlers
-      platformList.querySelectorAll(".platform-item").forEach((item) => {
-        item.addEventListener("click", () => {
-          const platform = platforms.find(
-            (p) => p.id == item.dataset.platformId
-          );
-          if (platform) this.loadPlatformDetails(platform);
-        });
-      });
-    } catch (error) {
-      console.error("Failed to load platforms:", error);
-    }
-  }
-
-  loadPlatformDetails(platform) {
-    document.getElementById("detailIcon").textContent = this.getPlatformIcon(
-      platform.platform
-    );
-    document.getElementById("detailName").textContent = platform.name;
-    document.getElementById("detailStatusText").textContent =
-      this.capitalizeFirst(platform.status);
-
-    const statusDot = document.getElementById("detailStatus");
-    statusDot.className = `status-dot ${this.getStatusClass(platform.status)}`;
-
-    // Statistics
-    document.getElementById("messagesToday").textContent =
-      platform.message_count_today || "--";
-    document.getElementById("messagesTotal").textContent = "1,450"; // TODO: From API
-    document.getElementById("pendingSync").textContent =
-      platform.pending_sync || "0";
-    document.getElementById("successRate").textContent = "98%"; // TODO: From API
-  }
-
-  async loadSyncStatus() {
-    try {
-      const data = await this.fetchAPI("sync/status");
-
-      document.getElementById("syncPending").textContent =
-        data.pending_messages;
-
-      const syncHealth = document.getElementById("syncHealth");
-      syncHealth.className = "status-dot";
-
-      if (data.sync_health === "healthy") {
-        syncHealth.classList.add("healthy");
-      } else if (data.sync_health === "lagging") {
-        syncHealth.classList.add("lagging");
-      } else {
-        syncHealth.classList.add("critical");
-      }
-
-      // Format last sync time
-      const lastSync = new Date(data.last_sync_at);
-      const now = new Date();
-      const diffMinutes = Math.floor((now - lastSync) / 1000 / 60);
-      document.getElementById("syncTime").textContent = `${diffMinutes}m ago`;
-    } catch (error) {
-      console.error("Failed to load sync status:", error);
-    }
-  }
-
-  updateProgress(progressId, percent, valueId, text) {
-    const progress = document.getElementById(progressId);
-    const value = document.getElementById(valueId);
-
-    if (progress) {
-      progress.style.width = `${Math.min(percent, 100)}%`;
-    }
-
-    if (value) {
-      value.textContent = text;
-    }
-  }
-
-  startAutoRefresh() {
-    // Refresh metrics more frequently
-    const metricsTimer = setInterval(
-      () => this.loadSystemMetrics(),
-      this.refreshInterval
-    );
-    const syncTimer = setInterval(
-      () => this.loadSyncStatus(),
-      this.refreshInterval
-    );
-    const platformsTimer = setInterval(
-      () => this.loadPlatforms(),
-      this.refreshInterval * 2
-    ); // Less frequent
-
-    this.timers.push(metricsTimer, syncTimer, platformsTimer);
-  }
-
-  setupEventListeners() {
-    // Panic button
-    const panicBtn = document.getElementById("panicBtn");
-    panicBtn.addEventListener("click", () => this.handlePanicMode());
-
-    // Mobile bottom navigation
-    document.querySelectorAll(".nav-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        // Remove active from all
-        document
-          .querySelectorAll(".nav-btn")
-          .forEach((b) => b.classList.remove("active"));
-        // Add active to clicked
-        btn.classList.add("active");
-
-        // Handle view switching (for mobile)
-        const view = btn.dataset.view;
-        this.switchMobileView(view);
-      });
-    });
-  }
-
-  switchMobileView(view) {
-    // Simple show/hide for mobile views
-    // In production, you'd want more sophisticated view management
-    console.log("Switching to view:", view);
-  }
-
-  async handlePanicMode() {
-    const confirmed = confirm(
-      "⚠️ WARNING\n\nThis will disable all AI modules!\nOnly manual messaging will work.\n\nAre you sure?"
-    );
-
-    if (!confirmed) return;
-
-    try {
-      const response = await fetch(`${this.apiBase}/system/panic`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          action: "enable",
-          reason: "Manual trigger from dashboard",
-        }),
-      });
-
-      if (response.ok) {
-        alert(
-          "🚨 PANIC MODE ACTIVATED\n\nAI modules disabled.\nManual mode only."
-        );
-      } else {
-        alert("Failed to activate panic mode");
-      }
-    } catch (error) {
-      console.error("Panic mode error:", error);
-      alert("Error: Could not activate panic mode");
-    }
-  }
-
-  getStatusClass(status) {
-    const map = {
-      connected: "healthy",
-      warning: "lagging",
-      error: "critical",
-      offline: "offline",
-    };
-    return map[status] || "offline";
-  }
-
-  getPlatformIcon(platform) {
-    const icons = {
-      facebook: "📘",
-      zalo: "💬",
-      telegram: "📱",
-    };
-    return icons[platform] || "📱";
-  }
-
-  capitalizeFirst(str) {
-    return str.charAt(0).toUpperCase() + str.slice(1);
-  }
-
-  showError(message) {
-    console.error("Dashboard error:", message);
-    // TODO: Show toast notification
-  }
-
-  destroy() {
-    this.timers.forEach((timer) => clearInterval(timer));
-    console.log("Dashboard destroyed");
+async function loadAllSystemData() {
+  try {
+    await Promise.all([
+      loadSystemMetrics(), // CPU, RAM
+      loadSystemStatus(), // Uptime, Version
+      loadPlatforms(), // Facebook status
+      loadSyncStatus(), // Database sync
+    ]);
+  } catch (e) {
+    console.error("Auto-refresh error:", e);
   }
 }
 
-// Initialize dashboard when DOM is ready
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", () => {
-    window.dashboard = new Dashboard();
+async function loadSystemMetrics() {
+  try {
+    const res = await fetch(`${API_BASE}/system/metrics`);
+    if (!res.ok) return;
+    const data = await res.json();
+
+    // Update CPU
+    document.getElementById(
+      "metric-cpu"
+    ).innerText = `${data.cpu_percent.toFixed(1)}%`;
+    document.getElementById("bar-cpu").style.width = `${Math.min(
+      data.cpu_percent,
+      100
+    )}%`;
+
+    // Update RAM
+    const ramPercent = (data.ram_used_gb / data.ram_total_gb) * 100;
+    document.getElementById(
+      "metric-ram"
+    ).innerText = `${data.ram_used_gb.toFixed(1)}/${data.ram_total_gb.toFixed(
+      1
+    )} GB`;
+    document.getElementById("bar-ram").style.width = `${Math.min(
+      ramPercent,
+      100
+    )}%`;
+
+    // Goroutines
+    document.getElementById("metric-goroutines").innerText =
+      data.goroutines_count;
+  } catch (e) {
+    console.warn("Metrics error");
+  }
+}
+
+async function loadSystemStatus() {
+  try {
+    const res = await fetch(`${API_BASE}/status`);
+    if (!res.ok) return;
+    const data = await res.json();
+
+    document.getElementById(
+      "system-uptime"
+    ).innerText = `Uptime: ${data.uptime}`;
+    document.getElementById("stat-version").innerText = data.version;
+    document.getElementById(
+      "stat-tenant"
+    ).innerText = `Tenant: ${data.tenant_id}`;
+  } catch (e) {
+    console.warn("Status error");
+  }
+}
+
+async function loadPlatforms() {
+  try {
+    const res = await fetch(`${API_BASE}/platforms`);
+    if (!res.ok) return;
+    const data = await res.json(); // Array
+
+    // Tìm Facebook Platform để hiển thị status
+    const fb = data.find((p) => p.platform === "facebook");
+    const statusEl = document.getElementById("stat-fb-status");
+    if (fb) {
+      statusEl.innerText = fb.status === "connected" ? "Connected" : "Error";
+      statusEl.className = `text-xl font-bold mt-1 ${
+        fb.status === "connected" ? "text-green-600" : "text-red-500"
+      }`;
+    } else {
+      statusEl.innerText = "Not Configured";
+    }
+  } catch (e) {
+    console.warn("Platforms error");
+  }
+}
+
+async function loadSyncStatus() {
+  try {
+    const res = await fetch(`${API_BASE}/sync/status`);
+    if (!res.ok) return;
+    const data = await res.json();
+
+    document.getElementById("stat-sync-pending").innerText =
+      data.pending_messages;
+    const lastSync = new Date(data.last_sync_at);
+    const diffMins = Math.floor((new Date() - lastSync) / 60000);
+    document.getElementById(
+      "stat-last-sync"
+    ).innerText = `Last sync: ${diffMins}m ago`;
+  } catch (e) {
+    console.warn("Sync error");
+  }
+}
+
+async function handlePanicMode() {
+  if (
+    !confirm(
+      "⚠️ CẢNH BÁO: Bạn có chắc chắn muốn kích hoạt PANIC MODE?\n\nHệ thống sẽ NGẮT toàn bộ AI Bot để tránh spam. Chỉ có chat thủ công hoạt động."
+    )
+  )
+    return;
+
+  try {
+    const res = await fetch(`${API_BASE}/system/panic`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "enable", reason: "Admin Trigger" }),
+    });
+    if (res.ok) alert("🚨 ĐÃ KÍCH HOẠT PANIC MODE!");
+    else alert("Lỗi kích hoạt Panic Mode");
+  } catch (e) {
+    alert("Mất kết nối Server");
+  }
+}
+
+// --- UI NAVIGATION & LISTENERS ---
+
+function setupEventListeners() {
+  // Sidebar Toggle
+  document.getElementById("toggle-sidebar")?.addEventListener("click", () => {
+    const sb = document.getElementById("sidebar");
+    sb.classList.toggle("w-64");
+    sb.classList.toggle("w-20");
+    document
+      .querySelectorAll(".sidebar-text")
+      .forEach((el) => el.classList.toggle("hidden"));
   });
-} else {
-  window.dashboard = new Dashboard();
+
+  // Panic Button
+  document
+    .getElementById("panic-btn")
+    ?.addEventListener("click", handlePanicMode);
+
+  // Chat Events
+  document
+    .getElementById("message-input")
+    ?.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") sendMessage();
+    });
+  document.getElementById("send-btn")?.addEventListener("click", sendMessage);
+}
+
+function switchView(viewName) {
+  document
+    .querySelectorAll('[id^="view-"]')
+    .forEach((el) => el.classList.add("hidden"));
+  document.getElementById(`view-${viewName}`).classList.remove("hidden");
+
+  document.querySelectorAll(".nav-item").forEach((el) => {
+    el.classList.remove("bg-blue-50", "text-blue-600");
+    el.classList.add("text-gray-600");
+  });
+  const btn = document.querySelector(
+    `button[onclick="switchView('${viewName}')"]`
+  );
+  if (btn) {
+    btn.classList.remove("text-gray-600");
+    btn.classList.add("bg-blue-50", "text-blue-600");
+  }
+
+  if (viewName === "facebook") loadConversations();
+}
+
+// --- CHAT LOGIC (PHASE 3) ---
+
+async function loadConversations() {
+  const container = document.getElementById("conversation-list");
+  if (!container) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/conversations`);
+    if (!res.headers.get("content-type")?.includes("application/json"))
+      throw new Error("API Error");
+
+    const result = await res.json();
+    container.innerHTML = "";
+
+    if (!result.data || result.data.length === 0) {
+      container.innerHTML =
+        '<div class="p-4 text-center text-xs text-gray-400">Trống</div>';
+      return;
+    }
+
+    result.data.forEach((conv) => {
+      const div = document.createElement("div");
+      div.className =
+        "p-3 mx-2 my-1 flex items-center cursor-pointer hover:bg-gray-100 rounded-lg transition conversation-item";
+      div.onclick = () => selectConversation(conv.id, conv.customer_name);
+      const initial = (conv.customer_name || "?").charAt(0).toUpperCase();
+
+      div.innerHTML = `
+                <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold mr-3 shrink-0">${initial}</div>
+                <div class="flex-1 min-w-0">
+                    <h3 class="text-sm font-bold text-gray-800 truncate">${
+                      conv.customer_name
+                    }</h3>
+                    <p class="text-xs text-gray-500 truncate">${
+                      conv.last_message_content || "..."
+                    }</p>
+                </div>
+            `;
+      container.appendChild(div);
+    });
+  } catch (e) {
+    container.innerHTML = `<div class="p-4 text-center text-red-500 text-xs">Lỗi kết nối</div>`;
+  }
+}
+
+async function selectConversation(id, name) {
+  currentConversationId = id;
+  document.getElementById("header-name").innerText = name;
+  document.getElementById("header-avatar").innerText = name
+    .charAt(0)
+    .toUpperCase();
+
+  document.getElementById("welcome-screen").classList.add("hidden");
+  document.getElementById("chat-header").classList.remove("hidden");
+  document.getElementById("chat-messages").classList.remove("hidden");
+  document.getElementById("input-area").classList.remove("hidden");
+
+  const chatBox = document.getElementById("chat-messages");
+  chatBox.innerHTML =
+    '<div class="text-center mt-4 text-xs text-gray-400">Đang tải...</div>';
+
+  try {
+    const res = await fetch(`${API_BASE}/conversations/${id}/messages`);
+    const result = await res.json();
+    if (result.code === 200) renderMessages(result.data);
+  } catch (e) {
+    chatBox.innerHTML =
+      '<div class="text-center text-red-500 text-xs mt-4">Lỗi tải tin nhắn</div>';
+  }
+}
+
+function renderMessages(msgs) {
+  const chatBox = document.getElementById("chat-messages");
+  chatBox.innerHTML = '<div class="h-2"></div>';
+  msgs.forEach((msg) => {
+    const isMe = msg.sender_type === "agent";
+    const div = document.createElement("div");
+    div.className = `flex ${isMe ? "justify-end" : "justify-start"} mb-3`;
+    div.innerHTML = `<div class="max-w-[75%] px-4 py-2 rounded-2xl text-sm ${
+      isMe ? "bg-blue-600 text-white" : "bg-white border text-gray-800"
+    }">${msg.content}</div>`;
+    chatBox.appendChild(div);
+  });
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+async function sendMessage() {
+  const input = document.getElementById("message-input");
+  const text = input.value.trim();
+  if (!text || !currentConversationId) return;
+
+  const chatBox = document.getElementById("chat-messages");
+  const temp = document.createElement("div");
+  temp.className = "flex justify-end mb-3 opacity-50";
+  temp.innerHTML = `<div class="max-w-[75%] px-4 py-2 rounded-2xl bg-blue-600 text-white text-sm">${text}</div>`;
+  chatBox.appendChild(temp);
+  chatBox.scrollTop = chatBox.scrollHeight;
+  input.value = "";
+
+  try {
+    await fetch(`${API_BASE}/messages/reply`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        conversation_id: parseInt(currentConversationId),
+        text,
+      }),
+    });
+    temp.classList.remove("opacity-50");
+  } catch (e) {
+    temp.innerHTML = '<span class="text-red-500 text-xs">Lỗi gửi</span>';
+  }
 }

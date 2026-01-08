@@ -1,6 +1,5 @@
 // Package main - Immortal Chat OS Application Entry Point
-// Following .rulesgemini Hexagonal Architecture principles
-// Phase 1: Infrastructure Wiring Only (No business logic yet)
+// Merged Phase 2 & Phase 3: Dashboard, Chat, Monitoring & Resilience
 package main
 
 import (
@@ -9,12 +8,15 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/redis/go-redis/v9"
 
+	"immortal-chat/internal/adapters/gateway" // Bổ sung Gateway cho Facebook
 	"immortal-chat/internal/adapters/handler"
 	"immortal-chat/internal/adapters/repository"
 	"immortal-chat/internal/config"
@@ -22,179 +24,100 @@ import (
 )
 
 func main() {
-	fmt.Println("=== Immortal Chat OS - Cell Infrastructure Initialization ===")
+	fmt.Println("=== Immortal Chat OS - System Initialization (Merged Phase 2+3) ===")
 
-	// 1. Load Configuration from Environment
-	fmt.Println("[1/4] Loading configuration...")
+	// 1. Load Configuration
+	fmt.Println("[1/5] Loading configuration...")
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("❌ Failed to load config: %v", err)
 	}
-	fmt.Printf("✓ Config loaded (DB: %s@%s:%d, Redis: %s)\n",
-		cfg.DB.User, cfg.DB.Host, cfg.DB.Port, cfg.Redis.Addr)
+	fmt.Printf("✓ Config loaded (DB: %s@%s:%d)\n", cfg.DB.User, cfg.DB.Host, cfg.DB.Port)
 
-	// 2. Connect to MariaDB with Retry Logic
-	// Docker containers may not be ready immediately, so we retry
-	fmt.Println("[2/4] Connecting to MariaDB...")
+	// 2. Connect to MariaDB (Retry Logic)
+	fmt.Println("[2/5] Connecting to MariaDB...")
 	db := connectMariaDB(cfg.DB, 5, 2*time.Second)
 	defer db.Close()
 	fmt.Println("✓ MariaDB connection established")
 
-	// 3. Connect to Redis with Retry Logic
-	fmt.Println("[3/4] Connecting to Redis...")
+	// 3. Connect to Redis (Retry Logic)
+	fmt.Println("[3/5] Connecting to Redis...")
 	rdb := connectRedis(cfg.Redis, 5, 2*time.Second)
 	defer rdb.Close()
 	fmt.Println("✓ Redis connection established")
 
 	// ==================================================================
-	// Phase 2: Initialize Repositories and Services
+	// INIT ARCHITECTURE LAYERS
 	// ==================================================================
-	fmt.Println("[4/6] Initializing repositories...")
-	
-	// Repository adapters (implementing ports)
+	fmt.Println("[4/5] Initializing Layers...")
+
+	// A. Repositories
 	mariadbRepo := repository.NewMariaDBRepository(db)
 	redisRepo := repository.NewRedisRepository(rdb)
-	
-	fmt.Println("✓ Repositories initialized")
-	
-	fmt.Println("[5/6] Initializing services...")
-	
-	// Core services (business logic)
+
+	// B. Gateways (Phase 3 Addition)
+	// Khởi tạo Facebook Client để gửi tin nhắn (Reply)
+	fbClient := gateway.NewFacebookClient(cfg.Facebook.APIVersion)
+	if fbClient == nil {
+		fbClient = gateway.NewFacebookClient("v19.0") // Default fallback
+	}
+
+	// C. Services
 	dispatcher := services.NewDispatcher(
-		mariadbRepo, // WebhookRepository
-		mariadbRepo, // MessageRepository
-		mariadbRepo, // ConversationRepository
-		redisRepo,   // DedupRepository
+		mariadbRepo,
+		mariadbRepo,
+		mariadbRepo,
+		redisRepo,
 	)
-	
-	fmt.Println("✓ Services initialized")
-	
-	fmt.Println("[6/6] Initializing HTTP handlers...")
-	
-	// HTTP handlers
+
+	// D. Handlers
 	webhookHandler := handler.NewWebhookHandler(
 		dispatcher,
 		cfg.Facebook.AppSecret,
 		cfg.Facebook.VerifyToken,
 	)
+
+	// Dashboard Handler (Phase 3 Upgrade)
+	// Lưu ý: DashboardHandler cần hỗ trợ cả method cũ (Metrics) và mới (Chat)
+	dashboardHandler := handler.NewDashboardHandler(mariadbRepo, fbClient)
+
+	// ==================================================================
+	// ROUTING SETUP (FIX LỖI STATIC FILES & 404)
+	// ==================================================================
+	fmt.Println("[5/5] Configuring Routes...")
+
+	mux := http.NewServeMux()
+
+	// 1. STATIC FILES (FIX LỖI QUAN TRỌNG)
+	// Map request bắt đầu bằng /static/ vào thư mục ./web/static/
+	// Điều này giúp tải file JS/CSS chính xác thay vì trả về HTML
+	workDir, _ := os.Getwd()
+	staticDir := filepath.Join(workDir, "web", "static")
+	fs := http.FileServer(http.Dir(staticDir))
+	mux.Handle("/static/", http.StripPrefix("/static/", fs))
+
+	// 2. PHASE 2 API (GIỮ NGUYÊN TÍNH NĂNG CŨ)
+	mux.HandleFunc("/api/status", dashboardHandler.GetStatus)
+	mux.HandleFunc("/api/system/metrics", dashboardHandler.GetSystemMetrics)
+	mux.HandleFunc("/api/platforms", dashboardHandler.GetPlatforms)     // <-- Đã khôi phục
+	mux.HandleFunc("/api/sync/status", dashboardHandler.GetSyncStatus) // <-- Đã khôi phục
+
+	// 3. PHASE 3 API (TÍNH NĂNG CHAT MỚI)
+	mux.HandleFunc("/api/conversations", dashboardHandler.GetConversations)
 	
-	// Dashboard handler (Phase 3)
-	dashboardHandler := handler.NewDashboardHandler(db, rdb)
-	
-	fmt.Println("✓ Handlers initialized")
-
-	// 4. Infrastructure Ready!
-	fmt.Println("\n✅ Cell Infrastructure Ready\n")
-
-	// Start Watchdog Service (Self-Healing Auto-Purge)
-	// Per .rulesgemini Section 5: Self-Healing & Watchdog
-	services.RunWatchdog(db)
-
-	// 5. Start HTTP Server (Keep process alive + webhook endpoints)
-	startHTTPServer(cfg.App.Port, webhookHandler, dashboardHandler)
-}
-
-// connectMariaDB attempts to connect to MariaDB with retry logic
-// Retries are necessary because Docker containers may still be initializing
-func connectMariaDB(cfg config.DBConfig, maxRetries int, retryDelay time.Duration) *sql.DB {
-	dsn := cfg.GetDSN()
-
-	var db *sql.DB
-	var err error
-
-	for i := 1; i <= maxRetries; i++ {
-		db, err = sql.Open("mysql", dsn)
-		if err != nil {
-			log.Printf("  Attempt %d/%d: Failed to configure DB driver: %v", i, maxRetries, err)
-			time.Sleep(retryDelay)
-			continue
-		}
-
-		// Test the connection with Ping
-		err = db.Ping()
-		if err == nil {
-			// Success!
-			return db
-		}
-
-		log.Printf("  Attempt %d/%d: Cannot ping MariaDB: %v", i, maxRetries, err)
-		db.Close()
-
-		if i < maxRetries {
-			time.Sleep(retryDelay)
-		}
-	}
-
-	// All retries exhausted
-	log.Fatalf("❌ Cannot connect to MariaDB after %d attempts: %v", maxRetries, err)
-	return nil // unreachable
-}
-
-// connectRedis attempts to connect to Redis with retry logic
-func connectRedis(cfg config.RedisConfig, maxRetries int, retryDelay time.Duration) *redis.Client {
-	rdb := redis.NewClient(&redis.Options{
-		Addr: cfg.Addr,
-	})
-
-	ctx := context.Background()
-	var err error
-
-	for i := 1; i <= maxRetries; i++ {
-		err = rdb.Ping(ctx).Err()
-		if err == nil {
-			// Success!
-			return rdb
-		}
-
-		log.Printf("  Attempt %d/%d: Cannot ping Redis: %v", i, maxRetries, err)
-
-		if i < maxRetries {
-			time.Sleep(retryDelay)
-		}
-	}
-
-	// All retries exhausted
-	log.Fatalf("❌ Cannot connect to Redis after %d attempts: %v", maxRetries, err)
-	return nil // unreachable
-}
-
-// startHTTPServer starts the HTTP server with webhook and dashboard endpoints
-// Following .rulesgemini: Standard library net/http (no heavy frameworks)
-func startHTTPServer(port int, webhookHandler *handler.WebhookHandler, dashboardHandler *handler.DashboardHandler) {
-	// ====================================================================
-	// Static Files (Dashboard UI)
-	// ====================================================================
-	fs := http.FileServer(http.Dir("./web/static"))
-	http.Handle("/", fs)
-	
-	// ====================================================================
-	// Dashboard API Endpoints (Phase 2 - Monitoring)
-	// ====================================================================
-	http.HandleFunc("/api/status", dashboardHandler.GetStatus)
-	http.HandleFunc("/api/system/metrics", dashboardHandler.GetSystemMetrics)
-	http.HandleFunc("/api/platforms", dashboardHandler.GetPlatforms)
-	http.HandleFunc("/api/sync/status", dashboardHandler.GetSyncStatus)
-	
-	// ====================================================================
-	// Phase 3: Conversation Management & Reply APIs
-	// ====================================================================
-	http.HandleFunc("/api/conversations", dashboardHandler.GetConversations)
-	http.HandleFunc("/api/conversations/", func(w http.ResponseWriter, r *http.Request) {
-		// Route: /api/conversations/{id}/messages
+	// Route con cho messages (VD: /api/conversations/123/messages)
+	mux.HandleFunc("/api/conversations/", func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/messages") {
 			dashboardHandler.GetConversationMessages(w, r)
 		} else {
 			http.NotFound(w, r)
 		}
 	})
-	http.HandleFunc("/api/messages/reply", dashboardHandler.SendReply)
 	
-	// ====================================================================
-	// Phase 2: Facebook Webhook Endpoints
-	// ====================================================================
-	
-	// GET /webhook/facebook - Webhook Verification
-	http.HandleFunc("/webhook/facebook", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/messages/reply", dashboardHandler.SendReply)
+
+	// 4. FACEBOOK WEBHOOK
+	mux.HandleFunc("/webhook/facebook", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			webhookHandler.HandleFacebookVerify(w, r)
 		} else if r.Method == http.MethodPost {
@@ -204,15 +127,74 @@ func startHTTPServer(port int, webhookHandler *handler.WebhookHandler, dashboard
 		}
 	})
 
-	addr := fmt.Sprintf(":%d", port)
-	fmt.Printf("[HTTP] Server listening on %s\n", addr)
-	fmt.Println("[HTTP] Dashboard: http://localhost:8080/")
-	fmt.Println("[HTTP] API Status: http://localhost:8080/api/status")
-	fmt.Println("[HTTP] System Metrics: http://localhost:8080/api/system/metrics")
-	fmt.Println("[HTTP] Facebook webhook: http://localhost:8080/webhook/facebook")
-	fmt.Println("[READY] Press Ctrl+C to stop\n")
+	// 5. ROOT HANDLER (SPA Fallback)
+	// Tất cả request không khớp API hay Static sẽ trả về index.html (để React/JS xử lý)
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Nếu cố tình gọi file không tồn tại (vd: /js/missing.js) thì trả về 404
+		// chứ không trả về index.html (tránh lỗi cú pháp <)
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
+		http.ServeFile(w, r, filepath.Join(staticDir, "index.html"))
+	})
 
-	if err := http.ListenAndServe(addr, nil); err != nil {
+	// ==================================================================
+	// START SERVER
+	// ==================================================================
+	addr := fmt.Sprintf(":%d", cfg.App.Port)
+	fmt.Printf("\n✅ [READY] Server listening on %s\n", addr)
+	fmt.Println("👉 Dashboard: http://localhost:8080/")
+	fmt.Println("👉 Static Dir mapped to:", staticDir)
+
+	// Start Watchdog Service (Phase 2 Resilience)
+	services.RunWatchdog(db)
+
+	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatalf("❌ HTTP server failed: %v", err)
 	}
+}
+
+// --- Helper Functions (Logic Retry không đổi) ---
+
+func connectMariaDB(cfg config.DBConfig, maxRetries int, retryDelay time.Duration) *sql.DB {
+	dsn := cfg.GetDSN()
+	var db *sql.DB
+	var err error
+
+	for i := 1; i <= maxRetries; i++ {
+		db, err = sql.Open("mysql", dsn)
+		if err != nil {
+			log.Printf("  Attempt %d/%d: Driver config error: %v", i, maxRetries, err)
+			time.Sleep(retryDelay)
+			continue
+		}
+		if err = db.Ping(); err == nil {
+			return db // Success
+		}
+		log.Printf("  Attempt %d/%d: Ping failed: %v", i, maxRetries, err)
+		db.Close()
+		if i < maxRetries {
+			time.Sleep(retryDelay)
+		}
+	}
+	log.Fatalf("❌ Cannot connect to MariaDB after %d attempts", maxRetries)
+	return nil
+}
+
+func connectRedis(cfg config.RedisConfig, maxRetries int, retryDelay time.Duration) *redis.Client {
+	rdb := redis.NewClient(&redis.Options{Addr: cfg.Addr})
+	ctx := context.Background()
+
+	for i := 1; i <= maxRetries; i++ {
+		if err := rdb.Ping(ctx).Err(); err == nil {
+			return rdb // Success
+		}
+		log.Printf("  Attempt %d/%d: Redis ping failed", i, maxRetries)
+		if i < maxRetries {
+			time.Sleep(retryDelay)
+		}
+	}
+	log.Fatalf("❌ Cannot connect to Redis after %d attempts", maxRetries)
+	return nil
 }

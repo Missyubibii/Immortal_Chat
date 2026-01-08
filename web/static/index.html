@@ -2,160 +2,260 @@
 <html lang="vi">
   <head>
     <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=5.0"
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Immortal Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
     />
-    <title>Immortal Chat OS - Dashboard</title>
-    <link rel="stylesheet" href="/css/dashboard.css" />
+    <link rel="stylesheet" href="/static/css/dashboard.css" />
   </head>
-  <body>
-    <!-- Mobile Header -->
-    <header class="mobile-header">
-      <h1>🧬 Immortal Chat OS</h1>
-      <div class="header-info">
-        <span class="tenant-badge">Tenant #<span id="tenantId">1</span></span>
-        <button class="panic-btn" id="panicBtn" title="Emergency: Disable AI">
-          🚨
+  <body
+    class="bg-gray-50 text-gray-800 font-sans h-screen flex overflow-hidden"
+  >
+    <aside
+      id="sidebar"
+      class="bg-white border-r border-gray-200 w-64 flex-shrink-0 flex flex-col transition-all duration-300 z-20"
+    >
+      <div
+        class="h-16 flex items-center justify-between px-4 border-b border-gray-100"
+      >
+        <div class="flex items-center gap-2 font-bold text-xl text-blue-600">
+          <i class="fa-solid fa-infinity"></i>
+          <span class="sidebar-text">ImmortalOS</span>
+        </div>
+        <button id="toggle-sidebar" class="text-gray-400 hover:text-blue-600">
+          <i class="fa-solid fa-bars"></i>
         </button>
       </div>
-    </header>
 
-    <!-- Main Container -->
-    <div class="container">
-      <!-- Sidebar (Desktop) / Top Section (Mobile) -->
-      <aside class="sidebar" id="sidebar">
-        <!-- Cell Health Card -->
-        <div class="card health-card">
-          <h3>🩺 Cell Health</h3>
-          <div class="metric">
-            <label>CPU</label>
-            <div class="progress-bar">
-              <div class="progress" id="cpuProgress"></div>
-            </div>
-            <span class="value" id="cpuValue">-- %</span>
+      <div class="p-4 border-b border-gray-100 sidebar-text">
+        <h3 class="text-xs font-semibold text-gray-400 uppercase mb-2">
+          Server Health
+        </h3>
+
+        <div class="mb-2">
+          <div class="flex justify-between text-xs mb-1">
+            <span>CPU</span>
+            <span id="metric-cpu" class="font-bold text-blue-600">--%</span>
           </div>
-          <div class="metric">
-            <label>RAM</label>
-            <div class="progress-bar">
-              <div class="progress" id="ramProgress"></div>
-            </div>
-            <span class="value" id="ramValue">-- GB</span>
-          </div>
-          <div class="metric">
-            <label>Disk</label>
-            <div class="progress-bar">
-              <div class="progress disk-progress" id="diskProgress"></div>
-            </div>
-            <span class="value" id="diskValue">-- %</span>
+          <div class="w-full bg-gray-100 rounded-full h-1.5">
+            <div
+              id="bar-cpu"
+              class="bg-blue-500 h-1.5 rounded-full transition-all duration-500"
+              style="width: 0%"
+            ></div>
           </div>
         </div>
 
-        <!-- Sync Status Card -->
-        <div class="card sync-card">
-          <h3>🔄 Sync Status</h3>
-          <div class="sync-info">
-            <div class="sync-row">
-              <span>Pending:</span>
-              <strong id="syncPending">--</strong>
-            </div>
-            <div class="sync-row">
-              <span>Health:</span>
-              <span class="status-dot" id="syncHealth"></span>
-            </div>
-            <div class="sync-row">
-              <span>Last sync:</span>
-              <small id="syncTime">--</small>
-            </div>
+        <div class="mb-2">
+          <div class="flex justify-between text-xs mb-1">
+            <span>RAM</span>
+            <span id="metric-ram" class="font-bold text-purple-600"
+              >--/-- GB</span
+            >
+          </div>
+          <div class="w-full bg-gray-100 rounded-full h-1.5">
+            <div
+              id="bar-ram"
+              class="bg-purple-500 h-1.5 rounded-full transition-all duration-500"
+              style="width: 0%"
+            ></div>
           </div>
         </div>
 
-        <!-- Platform List -->
-        <div class="card platforms-card">
-          <h3>📱 Platforms</h3>
-          <div class="platform-list" id="platformList">
-            <!-- Populated by JS -->
-          </div>
+        <div class="flex justify-between text-xs text-gray-500 mt-2">
+          <span>Goroutines:</span>
+          <span id="metric-goroutines" class="font-mono">--</span>
         </div>
-      </aside>
+      </div>
 
-      <!-- Main Content -->
-      <main class="main-content">
-        <!-- Platform Details -->
-        <div class="card platform-detail" id="platformDetail">
-          <div class="platform-header">
-            <span class="platform-icon" id="detailIcon">📘</span>
-            <div>
-              <h2 id="detailName">Facebook Messenger</h2>
-              <div class="status-row">
-                <span class="status-dot online" id="detailStatus"></span>
-                <span id="detailStatusText">Connected</span>
+      <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
+        <button
+          onclick="switchView('dashboard')"
+          class="nav-item w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg text-gray-600 hover:bg-gray-50 hover:text-blue-600 active-nav"
+        >
+          <i class="fa-solid fa-chart-pie w-6"></i
+          ><span class="sidebar-text ml-2">Tổng quan</span>
+        </button>
+        <div class="pt-4 pb-2">
+          <h3
+            class="px-3 text-xs font-semibold text-gray-400 uppercase sidebar-text"
+          >
+            Kênh kết nối
+          </h3>
+        </div>
+        <button
+          onclick="switchView('facebook')"
+          class="nav-item w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg text-gray-600 hover:bg-blue-50 hover:text-blue-600"
+        >
+          <i class="fa-brands fa-facebook w-6 text-blue-600"></i
+          ><span class="sidebar-text ml-2">Facebook Page</span>
+        </button>
+      </nav>
+
+      <div class="p-4 border-t border-gray-100 sidebar-text">
+        <button
+          id="panic-btn"
+          class="w-full flex items-center justify-center px-4 py-2 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded-lg transition-colors text-sm font-bold border border-red-200"
+        >
+          <i class="fa-solid fa-radiation mr-2"></i> PANIC MODE
+        </button>
+      </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col bg-gray-50 relative overflow-hidden">
+      <div id="view-dashboard" class="h-full overflow-y-auto p-8">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-2xl font-bold text-gray-800">Tổng quan hệ thống</h2>
+          <span
+            id="system-uptime"
+            class="text-sm text-gray-500 bg-white px-3 py-1 rounded-full shadow-sm"
+            >Uptime: --</span
+          >
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <div class="flex justify-between items-start">
+              <div>
+                <p class="text-sm text-gray-500">Facebook Status</p>
+                <h3
+                  id="stat-fb-status"
+                  class="text-xl font-bold mt-1 text-gray-800"
+                >
+                  Checking...
+                </h3>
+              </div>
+              <div
+                class="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600"
+              >
+                <i class="fa-brands fa-facebook-f"></i>
               </div>
             </div>
           </div>
 
-          <!-- Statistics Grid -->
-          <div class="stats-grid">
-            <div class="stat-card">
-              <div class="stat-value" id="messagesTotal">--</div>
-              <div class="stat-label">Total Messages</div>
+          <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <div class="flex justify-between items-start">
+              <div>
+                <p class="text-sm text-gray-500">Pending Sync</p>
+                <h3
+                  id="stat-sync-pending"
+                  class="text-2xl font-bold mt-1 text-gray-800"
+                >
+                  --
+                </h3>
+                <p id="stat-last-sync" class="text-xs text-gray-400 mt-1">
+                  Last sync: --
+                </p>
+              </div>
+              <div
+                class="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center text-green-600"
+              >
+                <i class="fa-solid fa-rotate"></i>
+              </div>
             </div>
-            <div class="stat-card">
-              <div class="stat-value" id="messagesToday">--</div>
-              <div class="stat-label">Today</div>
+          </div>
+
+          <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <div class="flex justify-between items-start">
+              <div>
+                <p class="text-sm text-gray-500">System Version</p>
+                <h3
+                  id="stat-version"
+                  class="text-xl font-bold mt-1 text-gray-800"
+                >
+                  v--
+                </h3>
+                <p id="stat-tenant" class="text-xs text-gray-400 mt-1">
+                  Tenant ID: --
+                </p>
+              </div>
+              <div
+                class="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center text-purple-600"
+              >
+                <i class="fa-solid fa-code-branch"></i>
+              </div>
             </div>
-            <div class="stat-card">
-              <div class="stat-value" id="pendingSync">--</div>
-              <div class="stat-label">Pending Sync</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value" id="successRate">--</div>
-              <div class="stat-label">Success Rate</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="view-facebook" class="h-full flex hidden">
+        <div class="w-80 bg-white border-r border-gray-200 flex flex-col">
+          <div class="p-4 border-b h-16 flex justify-between items-center">
+            <h2 class="font-bold">Hộp thư</h2>
+            <button
+              onclick="loadConversations()"
+              class="text-gray-400 hover:text-blue-600"
+            >
+              <i class="fa-solid fa-rotate"></i>
+            </button>
+          </div>
+          <div
+            id="conversation-list"
+            class="flex-1 overflow-y-auto custom-scrollbar"
+          >
+            <div class="p-8 text-center text-gray-400 text-sm">
+              <i class="fa-solid fa-spinner fa-spin"></i> Đang tải...
             </div>
           </div>
         </div>
 
-        <!-- System Info -->
-        <div class="card system-info">
-          <h3>⚙️ System Info</h3>
-          <div class="info-grid">
-            <div class="info-row">
-              <span>Status:</span>
-              <strong class="status-online" id="systemStatus">Online</strong>
+        <div class="flex-1 flex flex-col bg-gray-50 relative">
+          <div
+            id="welcome-screen"
+            class="absolute inset-0 flex flex-col items-center justify-center text-gray-400"
+          >
+            <i
+              class="fa-brands fa-facebook-messenger text-5xl mb-4 text-gray-300"
+            ></i>
+            <p>Chọn khách hàng để chat</p>
+          </div>
+
+          <div
+            id="chat-header"
+            class="h-16 bg-white border-b px-6 flex items-center justify-between hidden"
+          >
+            <div class="flex items-center">
+              <div
+                id="header-avatar"
+                class="w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center font-bold mr-3 text-blue-600"
+              >
+                ?
+              </div>
+              <h3 id="header-name" class="font-bold text-gray-800">
+                Khách hàng
+              </h3>
             </div>
-            <div class="info-row">
-              <span>Uptime:</span>
-              <strong id="systemUptime">--</strong>
-            </div>
-            <div class="info-row">
-              <span>Version:</span>
-              <strong id="systemVersion">--</strong>
-            </div>
-            <div class="info-row">
-              <span>Goroutines:</span>
-              <strong id="goroutines">--</strong>
+          </div>
+
+          <div
+            id="chat-messages"
+            class="flex-1 overflow-y-auto p-4 space-y-3 hidden"
+          ></div>
+
+          <div id="input-area" class="p-4 bg-white border-t hidden">
+            <div class="flex gap-2">
+              <input
+                id="message-input"
+                type="text"
+                class="flex-1 bg-gray-100 rounded-xl px-4 py-2 outline-none"
+                placeholder="Nhập tin nhắn..."
+              />
+              <button
+                id="send-btn"
+                class="w-10 h-10 bg-blue-600 text-white rounded-full hover:bg-blue-700"
+              >
+                <i class="fa-solid fa-paper-plane"></i>
+              </button>
             </div>
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </main>
 
-    <!-- Bottom Navigation (Mobile) -->
-    <nav class="bottom-nav">
-      <button class="nav-btn active" data-view="dashboard">
-        <span>📊</span>
-        <small>Dashboard</small>
-      </button>
-      <button class="nav-btn" data-view="platforms">
-        <span>📱</span>
-        <small>Platforms</small>
-      </button>
-      <button class="nav-btn" data-view="health">
-        <span>🩺</span>
-        <small>Health</small>
-      </button>
-    </nav>
-
-    <script src="/js/dashboard.js"></script>
+    <script src="/static/js/dashboard.js"></script>
   </body>
 </html>
