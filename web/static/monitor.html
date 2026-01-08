@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔍 System Live Monitor - Immortal Chat OS</title>
+    <style>
+        /* =================================================================
+           DARK MODE HACKER STYLE - Per User Request
+           Background: #0f172a (Slate 900)
+           Console Text: #10b981 (Emerald 500)
+           Font: Monospace
+           ================================================================= */
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #0f172a;
+            color: #10b981;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header / Toolbar */
+        .toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 20px;
+            background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+            border-bottom: 1px solid #334155;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .toolbar-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .logo {
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: #10b981;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .logo::before {
+            content: "⚡";
+        }
+
+        /* Connection Status Indicator */
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.875rem;
+            padding: 6px 12px;
+            border-radius: 9999px;
+            background: #1e293b;
+            border: 1px solid #334155;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.connected {
+            background: #10b981;
+            box-shadow: 0 0 8px #10b981;
+        }
+
+        .status-dot.disconnected {
+            background: #ef4444;
+            box-shadow: 0 0 8px #ef4444;
+        }
+
+        .status-dot.connecting {
+            background: #f59e0b;
+            box-shadow: 0 0 8px #f59e0b;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        /* Filter Input */
+        .filter-box {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .filter-input {
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #e2e8f0;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.875rem;
+            width: 200px;
+            transition: all 0.2s;
+        }
+
+        .filter-input:focus {
+            outline: none;
+            border-color: #10b981;
+            box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+        }
+
+        .filter-input::placeholder {
+            color: #64748b;
+        }
+
+        /* Control Buttons */
+        .controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #e2e8f0;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn:hover {
+            background: #334155;
+            border-color: #475569;
+        }
+
+        .btn.active {
+            background: #10b981;
+            border-color: #10b981;
+            color: #0f172a;
+        }
+
+        .btn-clear {
+            border-color: #ef4444;
+            color: #ef4444;
+        }
+
+        .btn-clear:hover {
+            background: #ef4444;
+            color: #0f172a;
+        }
+
+        /* Log Console */
+        .console-container {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .console {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 20px;
+            font-size: 0.8125rem;
+            line-height: 1.6;
+        }
+
+        .console::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .console::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+
+        .console::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+
+        .console::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+
+        /* Log Line Styles */
+        .log-line {
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin-bottom: 2px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            border-left: 3px solid transparent;
+            transition: background 0.2s;
+        }
+
+        .log-line:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        /* Log Level Highlighting */
+        .log-line.error {
+            color: #f87171;
+            background: rgba(239, 68, 68, 0.1);
+            border-left-color: #ef4444;
+        }
+
+        .log-line.warn {
+            color: #fbbf24;
+            background: rgba(245, 158, 11, 0.1);
+            border-left-color: #f59e0b;
+        }
+
+        .log-line.info {
+            color: #38bdf8;
+            border-left-color: #0ea5e9;
+        }
+
+        .log-line.debug {
+            color: #94a3b8;
+        }
+
+        /* CRITICAL KEYWORDS per core he thong loi.docx */
+        .log-line.critical {
+            color: #f472b6;
+            background: rgba(236, 72, 153, 0.15);
+            border-left-color: #ec4899;
+            font-weight: bold;
+        }
+
+        /* Timestamp */
+        .timestamp {
+            color: #64748b;
+            margin-right: 8px;
+        }
+
+        /* Footer / Stats */
+        .footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 20px;
+            background: #1e293b;
+            border-top: 1px solid #334155;
+            font-size: 0.75rem;
+            color: #64748b;
+        }
+
+        .stats {
+            display: flex;
+            gap: 24px;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .stat-value {
+            color: #e2e8f0;
+            font-weight: bold;
+        }
+
+        /* Hidden filter items */
+        .log-line.filtered {
+            display: none;
+        }
+
+        /* Paused indicator */
+        .paused-badge {
+            display: none;
+            background: #f59e0b;
+            color: #0f172a;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            margin-left: 8px;
+        }
+
+        .paused-badge.visible {
+            display: inline-block;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Toolbar -->
+    <div class="toolbar">
+        <div class="toolbar-left">
+            <div class="logo">System Live Monitor</div>
+            <div class="status-indicator">
+                <div id="statusDot" class="status-dot connecting"></div>
+                <span id="statusText">Đang kết nối...</span>
+            </div>
+            <span id="pausedBadge" class="paused-badge">⏸ PAUSED</span>
+        </div>
+
+        <div class="filter-box">
+            <input type="text" id="filterInput" class="filter-input" placeholder="🔍 Filter: ERROR, Webhook, Panic...">
+        </div>
+
+        <div class="controls">
+            <button id="pauseBtn" class="btn">
+                <span id="pauseIcon">⏸</span>
+                <span id="pauseText">Pause</span>
+            </button>
+            <button id="clearBtn" class="btn btn-clear">
+                🗑 Clear
+            </button>
+        </div>
+    </div>
+
+    <!-- Console -->
+    <div class="console-container">
+        <div id="console" class="console">
+            <div class="log-line info">
+                <span class="timestamp">[--:--:--]</span>
+                Đang kết nối WebSocket...
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+        <div class="stats">
+            <div class="stat-item">
+                <span>📊 Total Lines:</span>
+                <span id="totalLines" class="stat-value">0</span>
+            </div>
+            <div class="stat-item">
+                <span>🔍 Visible:</span>
+                <span id="visibleLines" class="stat-value">0</span>
+            </div>
+            <div class="stat-item">
+                <span>⏱ Last Update:</span>
+                <span id="lastUpdate" class="stat-value">--:--:--</span>
+            </div>
+        </div>
+        <div>Immortal Chat OS v2.0 | Ctrl+F = Browser Search</div>
+    </div>
+
+    <script>
+        // =================================================================
+        // CONFIGURATION
+        // =================================================================
+        const MAX_LOG_LINES = 5000;  // Auto-purge oldest logs when exceeded
+
+        // Get secret key from URL query param
+        const urlParams = new URLSearchParams(window.location.search);
+        const secretKey = urlParams.get('secret_key') || '';
+
+        // WebSocket URL (relative to current host)
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${wsProtocol}//${window.location.host}/ws/logs?secret_key=${encodeURIComponent(secretKey)}`;
+
+        // =================================================================
+        // STATE
+        // =================================================================
+        let ws = null;
+        let isPaused = false;
+        let totalLines = 0;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 10;
+        const reconnectDelay = 3000;
+
+        // DOM Elements
+        const consoleEl = document.getElementById('console');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const pauseIcon = document.getElementById('pauseIcon');
+        const pauseText = document.getElementById('pauseText');
+        const pausedBadge = document.getElementById('pausedBadge');
+        const clearBtn = document.getElementById('clearBtn');
+        const filterInput = document.getElementById('filterInput');
+        const totalLinesEl = document.getElementById('totalLines');
+        const visibleLinesEl = document.getElementById('visibleLines');
+        const lastUpdateEl = document.getElementById('lastUpdate');
+
+        // =================================================================
+        // CRITICAL KEYWORDS per core he thong loi.docx
+        // =================================================================
+        const CRITICAL_KEYWORDS = [
+            'Disk Full', 'Tràn ổ cứng', 'disk_full',
+            'Token Death', 'Token chết', 'token_expired', 'ErrTokenExpired',
+            'Bot Loop', 'Bot lặp', 'bot_loop',
+            'Master-Master', 'master_conflict',
+            'Panic', 'PANIC', 'panic:',
+            'FATAL', 'Fatal'
+        ];
+
+        // =================================================================
+        // WEBSOCKET CONNECTION
+        // =================================================================
+        function connect() {
+            if (!secretKey) {
+                setStatus('disconnected', '❌ Missing secret_key in URL');
+                addLogLine('[SYSTEM] Truy cập: /static/monitor.html?secret_key=YOUR_MESH_SECRET', 'error');
+                return;
+            }
+
+            setStatus('connecting', 'Đang kết nối...');
+
+            try {
+                ws = new WebSocket(wsUrl);
+
+                ws.onopen = function () {
+                    setStatus('connected', '✅ Đã kết nối');
+                    reconnectAttempts = 0;
+                    addLogLine('[SYSTEM] WebSocket kết nối thành công!', 'info');
+                };
+
+                ws.onmessage = function (event) {
+                    if (!isPaused) {
+                        // Split by newline in case of batched messages
+                        const messages = event.data.split('\n');
+                        messages.forEach(msg => {
+                            if (msg.trim()) {
+                                addLogLine(msg);
+                            }
+                        });
+                    }
+                };
+
+                ws.onclose = function (event) {
+                    setStatus('disconnected', '🔴 Mất kết nối');
+                    addLogLine(`[SYSTEM] WebSocket đóng (code: ${event.code})`, 'warn');
+
+                    // Auto-reconnect
+                    if (reconnectAttempts < maxReconnectAttempts) {
+                        reconnectAttempts++;
+                        setTimeout(() => {
+                            addLogLine(`[SYSTEM] Đang thử kết nối lại... (${reconnectAttempts}/${maxReconnectAttempts})`, 'warn');
+                            connect();
+                        }, reconnectDelay);
+                    } else {
+                        addLogLine('[SYSTEM] Không thể kết nối lại. Vui lòng refresh trang.', 'error');
+                    }
+                };
+
+                ws.onerror = function (error) {
+                    addLogLine('[SYSTEM] Lỗi WebSocket - Kiểm tra secret_key', 'error');
+                };
+            } catch (e) {
+                addLogLine(`[SYSTEM] Lỗi: ${e.message}`, 'error');
+            }
+        }
+
+        // =================================================================
+        // LOG LINE MANAGEMENT
+        // =================================================================
+        function addLogLine(text, forceLevel = null) {
+            const lineEl = document.createElement('div');
+            lineEl.className = 'log-line';
+
+            // Determine log level
+            let level = forceLevel || detectLogLevel(text);
+            lineEl.classList.add(level);
+
+            // Check for critical keywords
+            if (isCriticalLog(text)) {
+                lineEl.classList.add('critical');
+            }
+
+            // Add timestamp
+            const timestamp = new Date().toLocaleTimeString('vi-VN');
+
+            // Build content
+            lineEl.innerHTML = `<span class="timestamp">[${timestamp}]</span>${escapeHtml(text)}`;
+
+            // Store original text for filtering
+            lineEl.dataset.text = text.toLowerCase();
+
+            // Apply current filter
+            const filterText = filterInput.value.toLowerCase();
+            if (filterText && !lineEl.dataset.text.includes(filterText)) {
+                lineEl.classList.add('filtered');
+            }
+
+            consoleEl.appendChild(lineEl);
+            totalLines++;
+
+            // Auto-purge oldest logs if exceeded limit
+            while (consoleEl.children.length > MAX_LOG_LINES) {
+                consoleEl.removeChild(consoleEl.firstChild);
+            }
+
+            // Auto-scroll to bottom (if not paused)
+            if (!isPaused) {
+                consoleEl.scrollTop = consoleEl.scrollHeight;
+            }
+
+            // Update stats
+            updateStats();
+        }
+
+        function detectLogLevel(text) {
+            const upper = text.toUpperCase();
+            if (upper.includes('[ERROR]') || upper.includes('ERROR:') || upper.includes('❌')) {
+                return 'error';
+            }
+            if (upper.includes('[WARN]') || upper.includes('WARNING') || upper.includes('⚠️')) {
+                return 'warn';
+            }
+            if (upper.includes('[INFO]') || upper.includes('INFO:') || upper.includes('✅') || upper.includes('✓')) {
+                return 'info';
+            }
+            if (upper.includes('[DEBUG]') || upper.includes('DEBUG:')) {
+                return 'debug';
+            }
+            return '';
+        }
+
+        function isCriticalLog(text) {
+            const lower = text.toLowerCase();
+            return CRITICAL_KEYWORDS.some(keyword =>
+                lower.includes(keyword.toLowerCase())
+            );
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // =================================================================
+        // UI CONTROLS
+        // =================================================================
+        function setStatus(status, text) {
+            statusDot.className = `status-dot ${status}`;
+            statusText.textContent = text;
+        }
+
+        function togglePause() {
+            isPaused = !isPaused;
+
+            if (isPaused) {
+                pauseIcon.textContent = '▶';
+                pauseText.textContent = 'Resume';
+                pauseBtn.classList.add('active');
+                pausedBadge.classList.add('visible');
+            } else {
+                pauseIcon.textContent = '⏸';
+                pauseText.textContent = 'Pause';
+                pauseBtn.classList.remove('active');
+                pausedBadge.classList.remove('visible');
+                // Scroll to bottom when resuming
+                consoleEl.scrollTop = consoleEl.scrollHeight;
+            }
+        }
+
+        function clearConsole() {
+            consoleEl.innerHTML = '';
+            totalLines = 0;
+            addLogLine('[SYSTEM] Console đã được xóa', 'info');
+        }
+
+        function applyFilter() {
+            const filterText = filterInput.value.toLowerCase();
+            const lines = consoleEl.querySelectorAll('.log-line');
+
+            lines.forEach(line => {
+                if (!filterText || line.dataset.text.includes(filterText)) {
+                    line.classList.remove('filtered');
+                } else {
+                    line.classList.add('filtered');
+                }
+            });
+
+            updateStats();
+        }
+
+        function updateStats() {
+            const visibleCount = consoleEl.querySelectorAll('.log-line:not(.filtered)').length;
+            totalLinesEl.textContent = totalLines.toLocaleString();
+            visibleLinesEl.textContent = visibleCount.toLocaleString();
+            lastUpdateEl.textContent = new Date().toLocaleTimeString('vi-VN');
+        }
+
+        // =================================================================
+        // EVENT LISTENERS
+        // =================================================================
+        pauseBtn.addEventListener('click', togglePause);
+        clearBtn.addEventListener('click', clearConsole);
+        filterInput.addEventListener('input', applyFilter);
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function (e) {
+            // Space = Toggle Pause
+            if (e.code === 'Space' && document.activeElement !== filterInput) {
+                e.preventDefault();
+                togglePause();
+            }
+            // Escape = Clear filter
+            if (e.code === 'Escape') {
+                filterInput.value = '';
+                applyFilter();
+            }
+            // / = Focus filter
+            if (e.key === '/' && document.activeElement !== filterInput) {
+                e.preventDefault();
+                filterInput.focus();
+            }
+        });
+
+        // =================================================================
+        // INITIALIZE
+        // =================================================================
+        connect();
+    </script>
+</body>
+
+</html>

@@ -36,10 +36,11 @@ type FacebookConfig struct {
 
 // Config aggregates all configuration sections
 type Config struct {
-	DB       DBConfig
-	Redis    RedisConfig
-	App      AppConfig
-	Facebook FacebookConfig
+	DB         DBConfig
+	Redis      RedisConfig
+	App        AppConfig
+	Facebook   FacebookConfig
+	MeshSecret string // For internal API and WebSocket authentication (X-Mesh-Secret)
 }
 
 // LoadConfig reads configuration from environment variables
@@ -76,6 +77,10 @@ func LoadConfig() (*Config, error) {
 	if cfg.Facebook.VerifyToken == "" {
 		return nil, fmt.Errorf("FB_VERIFY_TOKEN environment variable is required")
 	}
+
+	// Mesh Network Security (for internal API and WebSocket authentication)
+	// Optional: If not set, System Monitor will be disabled
+	cfg.MeshSecret = getEnv("MESH_SECRET", "")
 
 	return cfg, nil
 }

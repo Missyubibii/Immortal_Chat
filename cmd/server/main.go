@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -16,9 +17,12 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/redis/go-redis/v9"
 
-	// Bổ sung Gateway cho Facebook
+	// Adapters
 	"immortal-chat/internal/adapters/handler"
 	"immortal-chat/internal/adapters/repository"
+	logws "immortal-chat/internal/adapters/websocket"
+
+	// Core
 	"immortal-chat/internal/config"
 	"immortal-chat/internal/core/services"
 )
@@ -27,21 +31,37 @@ func main() {
 	fmt.Println("=== Immortal Chat OS - System Initialization (Merged Phase 2+3) ===")
 
 	// 1. Load Configuration
-	fmt.Println("[1/5] Loading configuration...")
+	fmt.Println("[1/6] Loading configuration...")
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("❌ Failed to load config: %v", err)
 	}
 	fmt.Printf("✓ Config loaded (DB: %s@%s:%d)\n", cfg.DB.User, cfg.DB.Host, cfg.DB.Port)
 
-	// 2. Connect to MariaDB (Retry Logic)
-	fmt.Println("[2/5] Connecting to MariaDB...")
+	// 1.5. Initialize System Live Monitor (LogHub)
+	// Per TÀI LIỆU: "Centralized Logging - Giữ trên RAM, mất cũng được"
+	var logHub *logws.LogHub
+	if cfg.MeshSecret != "" {
+		fmt.Println("[2/6] Initializing System Live Monitor...")
+		logHub = logws.NewLogHub(cfg.MeshSecret)
+		go logHub.Run()
+		
+		// Hook into standard log output (Non-blocking via io.MultiWriter)
+		// This captures all log.Println, log.Printf, etc.
+		log.SetOutput(io.MultiWriter(os.Stdout, logHub))
+		fmt.Println("✓ System Live Monitor enabled (WebSocket: /ws/logs)")
+	} else {
+		fmt.Println("[2/6] System Live Monitor DISABLED (MESH_SECRET not set)")
+	}
+
+	// 3. Connect to MariaDB (Retry Logic)
+	fmt.Println("[3/6] Connecting to MariaDB...")
 	db := connectMariaDB(cfg.DB, 5, 2*time.Second)
 	defer db.Close()
 	fmt.Println("✓ MariaDB connection established")
 
-	// 3. Connect to Redis (Retry Logic)
-	fmt.Println("[3/5] Connecting to Redis...")
+	// 4. Connect to Redis (Retry Logic)
+	fmt.Println("[4/6] Connecting to Redis...")
 	rdb := connectRedis(cfg.Redis, 5, 2*time.Second)
 	defer rdb.Close()
 	fmt.Println("✓ Redis connection established")
@@ -49,7 +69,7 @@ func main() {
 	// ==================================================================
 	// INIT ARCHITECTURE LAYERS
 	// ==================================================================
-	fmt.Println("[4/5] Initializing Layers...")
+	fmt.Println("[5/6] Initializing Layers...")
 
 	// A. Repositories
 	mariadbRepo := repository.NewMariaDBRepository(db)
@@ -77,7 +97,7 @@ func main() {
 	// ==================================================================
 	// ROUTING SETUP (FIX LỖI STATIC FILES & 404)
 	// ==================================================================
-	fmt.Println("[5/5] Configuring Routes...")
+	fmt.Println("[6/6] Configuring Routes...")
 
 	mux := http.NewServeMux()
 
@@ -120,7 +140,14 @@ func main() {
 		}
 	})
 
-	// 5. ROOT HANDLER (SPA Fallback)
+	// 5. SYSTEM LIVE MONITOR (WebSocket)
+	// Route: /ws/logs?secret_key=YOUR_MESH_SECRET
+	if logHub != nil {
+		mux.HandleFunc("/ws/logs", logHub.ServeWS)
+		log.Println("✓ WebSocket route /ws/logs registered")
+	}
+
+	// 6. ROOT HANDLER (SPA Fallback)
 	// Tất cả request không khớp API hay Static sẽ trả về index.html (để React/JS xử lý)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// Nếu cố tình gọi file không tồn tại (vd: /js/missing.js) thì trả về 404

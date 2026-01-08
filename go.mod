@@ -4,6 +4,7 @@ go 1.22.12
 
 require (
 	github.com/go-sql-driver/mysql v1.9.3
+	github.com/gorilla/websocket v1.5.3
 	github.com/redis/go-redis/v9 v9.17.2
 	github.com/shirou/gopsutil/v3 v3.24.5
 )
