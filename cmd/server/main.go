@@ -16,7 +16,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/redis/go-redis/v9"
 
-	"immortal-chat/internal/adapters/gateway" // Bổ sung Gateway cho Facebook
+	// Bổ sung Gateway cho Facebook
 	"immortal-chat/internal/adapters/handler"
 	"immortal-chat/internal/adapters/repository"
 	"immortal-chat/internal/config"
@@ -55,14 +55,7 @@ func main() {
 	mariadbRepo := repository.NewMariaDBRepository(db)
 	redisRepo := repository.NewRedisRepository(rdb)
 
-	// B. Gateways (Phase 3 Addition)
-	// Khởi tạo Facebook Client để gửi tin nhắn (Reply)
-	fbClient := gateway.NewFacebookClient(cfg.Facebook.APIVersion)
-	if fbClient == nil {
-		fbClient = gateway.NewFacebookClient("v19.0") // Default fallback
-	}
-
-	// C. Services
+	// B. Services (Gateway is instantiated inside handlers as needed)
 	dispatcher := services.NewDispatcher(
 		mariadbRepo,
 		mariadbRepo,
@@ -79,7 +72,7 @@ func main() {
 
 	// Dashboard Handler (Phase 3 Upgrade)
 	// Lưu ý: DashboardHandler cần hỗ trợ cả method cũ (Metrics) và mới (Chat)
-	dashboardHandler := handler.NewDashboardHandler(mariadbRepo, fbClient)
+	dashboardHandler := handler.NewDashboardHandler(db, rdb)
 
 	// ==================================================================
 	// ROUTING SETUP (FIX LỖI STATIC FILES & 404)
