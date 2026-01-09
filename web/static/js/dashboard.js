@@ -2,7 +2,27 @@ const API_BASE = "/api";
 let currentConversationId = null;
 let refreshTimer = null;
 
+// Lấy Secret Key từ URL (Ví dụ: ?secret_key=abc...)
+const urlParams = new URLSearchParams(window.location.search);
+const MESH_SECRET = urlParams.get('secret_key');
+
+// Hàm tạo Header chuẩn (kèm Secret Key)
+function getAuthHeaders() {
+  const headers = { "Content-Type": "application/json" };
+  if (MESH_SECRET) {
+    headers["X-Mesh-Secret"] = MESH_SECRET; // Chìa khóa vạn năng cho Admin
+  }
+  return headers;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+
+  // Kiểm tra bảo mật
+  if (!MESH_SECRET) {
+    console.warn("⚠️ Không tìm thấy secret_key trên URL. API có thể bị lỗi 403.");
+    alert("Vui lòng truy cập kèm ?secret_key=YOUR_KEY để có quyền Admin");
+  }
+
   // 1. Init UI
   switchView("dashboard");
 

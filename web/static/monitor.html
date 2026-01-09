@@ -5,363 +5,124 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🔍 System Live Monitor - Immortal Chat OS</title>
-    <style>
-        /* =================================================================
-           DARK MODE HACKER STYLE - Per User Request
-           Background: #0f172a (Slate 900)
-           Console Text: #10b981 (Emerald 500)
-           Font: Monospace
-           ================================================================= */
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            background-color: #0f172a;
-            color: #10b981;
-            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        /* Header / Toolbar */
-        .toolbar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 12px 20px;
-            background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
-            border-bottom: 1px solid #334155;
-            gap: 16px;
-            flex-wrap: wrap;
-        }
-
-        .toolbar-left {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-        }
-
-        .logo {
-            font-size: 1.25rem;
-            font-weight: bold;
-            color: #10b981;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .logo::before {
-            content: "⚡";
-        }
-
-        /* Connection Status Indicator */
-        .status-indicator {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.875rem;
-            padding: 6px 12px;
-            border-radius: 9999px;
-            background: #1e293b;
-            border: 1px solid #334155;
-        }
-
-        .status-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            animation: pulse 2s infinite;
-        }
-
-        .status-dot.connected {
-            background: #10b981;
-            box-shadow: 0 0 8px #10b981;
-        }
-
-        .status-dot.disconnected {
-            background: #ef4444;
-            box-shadow: 0 0 8px #ef4444;
-        }
-
-        .status-dot.connecting {
-            background: #f59e0b;
-            box-shadow: 0 0 8px #f59e0b;
-        }
-
-        @keyframes pulse {
-
-            0%,
-            100% {
-                opacity: 1;
-            }
-
-            50% {
-                opacity: 0.5;
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        slate: { 850: '#1e293b' } // Custom dark shade if needed
+                    },
+                    fontFamily: {
+                        mono: ['JetBrains Mono', 'Fira Code', 'Consolas', 'monospace'],
+                    }
+                }
             }
         }
+    </script>
 
-        /* Filter Input */
-        .filter-box {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
+    <style type="text/tailwindcss">
+        @layer utilities {
+            /* Custom Scrollbar */
+            .custom-scrollbar::-webkit-scrollbar {
+                width: 8px;
+            }
+            .custom-scrollbar::-webkit-scrollbar-track {
+                @apply bg-slate-900;
+            }
+            .custom-scrollbar::-webkit-scrollbar-thumb {
+                @apply bg-slate-600 rounded hover:bg-slate-500;
+            }
 
-        .filter-input {
-            background: #1e293b;
-            border: 1px solid #334155;
-            color: #e2e8f0;
-            padding: 8px 16px;
-            border-radius: 6px;
-            font-family: inherit;
-            font-size: 0.875rem;
-            width: 200px;
-            transition: all 0.2s;
-        }
-
-        .filter-input:focus {
-            outline: none;
-            border-color: #10b981;
-            box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
-        }
-
-        .filter-input::placeholder {
-            color: #64748b;
-        }
-
-        /* Control Buttons */
-        .controls {
-            display: flex;
-            gap: 8px;
-        }
-
-        .btn {
-            background: #1e293b;
-            border: 1px solid #334155;
-            color: #e2e8f0;
-            padding: 8px 16px;
-            border-radius: 6px;
-            font-family: inherit;
-            font-size: 0.875rem;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .btn:hover {
-            background: #334155;
-            border-color: #475569;
-        }
-
-        .btn.active {
-            background: #10b981;
-            border-color: #10b981;
-            color: #0f172a;
-        }
-
-        .btn-clear {
-            border-color: #ef4444;
-            color: #ef4444;
-        }
-
-        .btn-clear:hover {
-            background: #ef4444;
-            color: #0f172a;
-        }
-
-        /* Log Console */
-        .console-container {
-            flex: 1;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .console {
-            flex: 1;
-            overflow-y: auto;
-            padding: 16px 20px;
-            font-size: 0.8125rem;
-            line-height: 1.6;
-        }
-
-        .console::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        .console::-webkit-scrollbar-track {
-            background: #1e293b;
-        }
-
-        .console::-webkit-scrollbar-thumb {
-            background: #475569;
-            border-radius: 4px;
-        }
-
-        .console::-webkit-scrollbar-thumb:hover {
-            background: #64748b;
-        }
-
-        /* Log Line Styles */
-        .log-line {
-            padding: 4px 8px;
-            border-radius: 4px;
-            margin-bottom: 2px;
-            white-space: pre-wrap;
-            word-break: break-all;
-            border-left: 3px solid transparent;
-            transition: background 0.2s;
-        }
-
-        .log-line:hover {
-            background: rgba(255, 255, 255, 0.03);
-        }
-
-        /* Log Level Highlighting */
-        .log-line.error {
-            color: #f87171;
-            background: rgba(239, 68, 68, 0.1);
-            border-left-color: #ef4444;
-        }
-
-        .log-line.warn {
-            color: #fbbf24;
-            background: rgba(245, 158, 11, 0.1);
-            border-left-color: #f59e0b;
-        }
-
-        .log-line.info {
-            color: #38bdf8;
-            border-left-color: #0ea5e9;
-        }
-
-        .log-line.debug {
-            color: #94a3b8;
-        }
-
-        /* CRITICAL KEYWORDS per core he thong loi.docx */
-        .log-line.critical {
-            color: #f472b6;
-            background: rgba(236, 72, 153, 0.15);
-            border-left-color: #ec4899;
-            font-weight: bold;
-        }
-
-        /* Timestamp */
-        .timestamp {
-            color: #64748b;
-            margin-right: 8px;
-        }
-
-        /* Footer / Stats */
-        .footer {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 20px;
-            background: #1e293b;
-            border-top: 1px solid #334155;
-            font-size: 0.75rem;
-            color: #64748b;
-        }
-
-        .stats {
-            display: flex;
-            gap: 24px;
-        }
-
-        .stat-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .stat-value {
-            color: #e2e8f0;
-            font-weight: bold;
-        }
-
-        /* Hidden filter items */
-        .log-line.filtered {
-            display: none;
-        }
-
-        /* Paused indicator */
-        .paused-badge {
-            display: none;
-            background: #f59e0b;
-            color: #0f172a;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 0.75rem;
-            font-weight: bold;
-            margin-left: 8px;
-        }
-
-        .paused-badge.visible {
-            display: inline-block;
+            /* Log Levels - Sử dụng @apply để tái sử dụng class Tailwind */
+            .log-line {
+                @apply px-2 py-0.5 rounded mb-0.5 border-l-4 border-transparent hover:bg-white/5 transition-colors whitespace-pre-wrap break-all;
+            }
+            .log-line.error {
+                @apply text-red-400 bg-red-500/10 border-red-500;
+            }
+            .log-line.warn {
+                @apply text-amber-400 bg-amber-500/10 border-amber-500;
+            }
+            .log-line.info {
+                @apply text-sky-400 border-sky-500;
+            }
+            .log-line.debug {
+                @apply text-slate-400;
+            }
+            .log-line.critical {
+                @apply text-pink-400 bg-pink-500/15 border-pink-500 font-bold;
+            }
+            .log-line.filtered {
+                @apply hidden;
+            }
         }
     </style>
 </head>
 
-<body>
-    <!-- Toolbar -->
-    <div class="toolbar">
-        <div class="toolbar-left">
-            <div class="logo">System Live Monitor</div>
-            <div class="status-indicator">
-                <div id="statusDot" class="status-dot connecting"></div>
+<body class="bg-slate-900 text-emerald-500 font-mono h-screen flex flex-col overflow-hidden">
+
+    <div
+        class="flex items-center justify-between px-5 py-3 bg-gradient-to-b from-slate-800 to-slate-900 border-b border-slate-700 flex-wrap gap-4 shrink-0 z-10">
+
+        <div class="flex items-center gap-4">
+            <div class="text-xl font-bold text-emerald-500 flex items-center gap-2">
+                <span>⚡</span> System Live Monitor
+            </div>
+
+            <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-sm">
+                <div id="statusDot"
+                    class="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,1)] animate-pulse">
+                </div>
                 <span id="statusText">Đang kết nối...</span>
             </div>
-            <span id="pausedBadge" class="paused-badge">⏸ PAUSED</span>
+
+            <span id="pausedBadge" class="hidden bg-amber-500 text-slate-900 px-2 py-0.5 rounded text-xs font-bold">⏸
+                PAUSED</span>
         </div>
 
-        <div class="filter-box">
-            <input type="text" id="filterInput" class="filter-input" placeholder="🔍 Filter: ERROR, Webhook, Panic...">
+        <div class="flex-1 max-w-xl">
+            <input type="text" id="filterInput"
+                class="w-full bg-slate-800 border border-slate-700 text-slate-200 px-4 py-2 rounded-md focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-sm placeholder-slate-500"
+                placeholder="🔍 Filter: ERROR, Webhook, Panic...">
         </div>
 
-        <div class="controls">
-            <button id="pauseBtn" class="btn">
+        <div class="flex gap-2">
+            <button id="pauseBtn"
+                class="flex items-center gap-2 px-4 py-2 bg-slate-800 border border-slate-700 text-slate-200 rounded-md hover:bg-slate-700 transition-colors text-sm">
                 <span id="pauseIcon">⏸</span>
                 <span id="pauseText">Pause</span>
             </button>
-            <button id="clearBtn" class="btn btn-clear">
+            <button id="clearBtn"
+                class="flex items-center gap-2 px-4 py-2 bg-slate-800 border border-red-500 text-red-500 rounded-md hover:bg-red-500 hover:text-slate-900 transition-colors text-sm">
                 🗑 Clear
             </button>
         </div>
     </div>
 
-    <!-- Console -->
-    <div class="console-container">
-        <div id="console" class="console">
+    <div class="flex-1 overflow-hidden relative flex flex-col">
+        <div id="console" class="flex-1 overflow-y-auto p-5 text-[13px] leading-relaxed custom-scrollbar">
             <div class="log-line info">
-                <span class="timestamp">[--:--:--]</span>
+                <span class="text-slate-500 mr-2">[--:--:--]</span>
                 Đang kết nối WebSocket...
             </div>
         </div>
     </div>
 
-    <!-- Footer -->
-    <div class="footer">
-        <div class="stats">
-            <div class="stat-item">
+    <div
+        class="flex justify-between items-center px-5 py-2 bg-slate-800 border-t border-slate-700 text-xs text-slate-500 shrink-0">
+        <div class="flex gap-6">
+            <div class="flex items-center gap-1.5">
                 <span>📊 Total Lines:</span>
-                <span id="totalLines" class="stat-value">0</span>
+                <span id="totalLines" class="text-slate-200 font-bold">0</span>
             </div>
-            <div class="stat-item">
+            <div class="flex items-center gap-1.5">
                 <span>🔍 Visible:</span>
-                <span id="visibleLines" class="stat-value">0</span>
+                <span id="visibleLines" class="text-slate-200 font-bold">0</span>
             </div>
-            <div class="stat-item">
+            <div class="flex items-center gap-1.5">
                 <span>⏱ Last Update:</span>
-                <span id="lastUpdate" class="stat-value">--:--:--</span>
+                <span id="lastUpdate" class="text-slate-200 font-bold">--:--:--</span>
             </div>
         </div>
         <div>Immortal Chat OS v2.0 | Ctrl+F = Browser Search</div>
@@ -371,13 +132,10 @@
         // =================================================================
         // CONFIGURATION
         // =================================================================
-        const MAX_LOG_LINES = 5000;  // Auto-purge oldest logs when exceeded
+        const MAX_LOG_LINES = 5000;
 
-        // Get secret key from URL query param
         const urlParams = new URLSearchParams(window.location.search);
         const secretKey = urlParams.get('secret_key') || '';
-
-        // WebSocket URL (relative to current host)
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${wsProtocol}//${window.location.host}/ws/logs?secret_key=${encodeURIComponent(secretKey)}`;
 
@@ -405,9 +163,6 @@
         const visibleLinesEl = document.getElementById('visibleLines');
         const lastUpdateEl = document.getElementById('lastUpdate');
 
-        // =================================================================
-        // CRITICAL KEYWORDS per core he thong loi.docx
-        // =================================================================
         const CRITICAL_KEYWORDS = [
             'Disk Full', 'Tràn ổ cứng', 'disk_full',
             'Token Death', 'Token chết', 'token_expired', 'ErrTokenExpired',
@@ -422,7 +177,7 @@
         // =================================================================
         function connect() {
             if (!secretKey) {
-                setStatus('disconnected', '❌ Missing secret_key in URL');
+                setStatus('disconnected', '❌ Missing secret_key');
                 addLogLine('[SYSTEM] Truy cập: /static/monitor.html?secret_key=YOUR_MESH_SECRET', 'error');
                 return;
             }
@@ -440,7 +195,6 @@
 
                 ws.onmessage = function (event) {
                     if (!isPaused) {
-                        // Split by newline in case of batched messages
                         const messages = event.data.split('\n');
                         messages.forEach(msg => {
                             if (msg.trim()) {
@@ -454,7 +208,6 @@
                     setStatus('disconnected', '🔴 Mất kết nối');
                     addLogLine(`[SYSTEM] WebSocket đóng (code: ${event.code})`, 'warn');
 
-                    // Auto-reconnect
                     if (reconnectAttempts < maxReconnectAttempts) {
                         reconnectAttempts++;
                         setTimeout(() => {
@@ -479,27 +232,28 @@
         // =================================================================
         function addLogLine(text, forceLevel = null) {
             const lineEl = document.createElement('div');
-            lineEl.className = 'log-line';
+            lineEl.className = 'log-line'; // Base class from Tailwind layer
 
             // Determine log level
             let level = forceLevel || detectLogLevel(text);
-            lineEl.classList.add(level);
+
+            // [FIX LỖI] Kiểm tra level có giá trị không trước khi add
+            if (level && level.trim() !== '') {
+                lineEl.classList.add(level);
+            }
 
             // Check for critical keywords
             if (isCriticalLog(text)) {
                 lineEl.classList.add('critical');
             }
 
-            // Add timestamp
             const timestamp = new Date().toLocaleTimeString('vi-VN');
+            lineEl.innerHTML = `<span class="text-slate-500 mr-2">[${timestamp}]</span>${escapeHtml(text)}`;
 
-            // Build content
-            lineEl.innerHTML = `<span class="timestamp">[${timestamp}]</span>${escapeHtml(text)}`;
-
-            // Store original text for filtering
+            // Store for filtering
             lineEl.dataset.text = text.toLowerCase();
 
-            // Apply current filter
+            // Apply filter
             const filterText = filterInput.value.toLowerCase();
             if (filterText && !lineEl.dataset.text.includes(filterText)) {
                 lineEl.classList.add('filtered');
@@ -508,42 +262,31 @@
             consoleEl.appendChild(lineEl);
             totalLines++;
 
-            // Auto-purge oldest logs if exceeded limit
+            // Auto-purge
             while (consoleEl.children.length > MAX_LOG_LINES) {
                 consoleEl.removeChild(consoleEl.firstChild);
             }
 
-            // Auto-scroll to bottom (if not paused)
+            // Auto-scroll
             if (!isPaused) {
                 consoleEl.scrollTop = consoleEl.scrollHeight;
             }
 
-            // Update stats
             updateStats();
         }
 
         function detectLogLevel(text) {
             const upper = text.toUpperCase();
-            if (upper.includes('[ERROR]') || upper.includes('ERROR:') || upper.includes('❌')) {
-                return 'error';
-            }
-            if (upper.includes('[WARN]') || upper.includes('WARNING') || upper.includes('⚠️')) {
-                return 'warn';
-            }
-            if (upper.includes('[INFO]') || upper.includes('INFO:') || upper.includes('✅') || upper.includes('✓')) {
-                return 'info';
-            }
-            if (upper.includes('[DEBUG]') || upper.includes('DEBUG:')) {
-                return 'debug';
-            }
-            return '';
+            if (upper.includes('[ERROR]') || upper.includes('ERROR:') || upper.includes('❌')) return 'error';
+            if (upper.includes('[WARN]') || upper.includes('WARNING') || upper.includes('⚠️')) return 'warn';
+            if (upper.includes('[INFO]') || upper.includes('INFO:') || upper.includes('✅') || upper.includes('✓')) return 'info';
+            if (upper.includes('[DEBUG]') || upper.includes('DEBUG:')) return 'debug';
+            return ''; // Trả về rỗng nếu không khớp
         }
 
         function isCriticalLog(text) {
             const lower = text.toLowerCase();
-            return CRITICAL_KEYWORDS.some(keyword =>
-                lower.includes(keyword.toLowerCase())
-            );
+            return CRITICAL_KEYWORDS.some(keyword => lower.includes(keyword.toLowerCase()));
         }
 
         function escapeHtml(text) {
@@ -556,24 +299,34 @@
         // UI CONTROLS
         // =================================================================
         function setStatus(status, text) {
-            statusDot.className = `status-dot ${status}`;
+            // Tailwind classes for status dot
+            statusDot.className = 'w-2.5 h-2.5 rounded-full shadow-[0_0_8px] '; // Reset base
+
+            if (status === 'connected') {
+                statusDot.classList.add('bg-emerald-500', 'shadow-emerald-500', 'animate-pulse');
+            } else if (status === 'disconnected') {
+                statusDot.classList.add('bg-red-500', 'shadow-red-500');
+            } else if (status === 'connecting') {
+                statusDot.classList.add('bg-amber-500', 'shadow-amber-500', 'animate-pulse');
+            }
+
             statusText.textContent = text;
         }
 
         function togglePause() {
             isPaused = !isPaused;
-
             if (isPaused) {
                 pauseIcon.textContent = '▶';
                 pauseText.textContent = 'Resume';
-                pauseBtn.classList.add('active');
-                pausedBadge.classList.add('visible');
+                pauseBtn.classList.replace('bg-slate-800', 'bg-emerald-600');
+                pauseBtn.classList.replace('text-slate-200', 'text-white');
+                pausedBadge.classList.remove('hidden');
             } else {
                 pauseIcon.textContent = '⏸';
                 pauseText.textContent = 'Pause';
-                pauseBtn.classList.remove('active');
-                pausedBadge.classList.remove('visible');
-                // Scroll to bottom when resuming
+                pauseBtn.classList.replace('bg-emerald-600', 'bg-slate-800');
+                pauseBtn.classList.replace('text-white', 'text-slate-200');
+                pausedBadge.classList.add('hidden');
                 consoleEl.scrollTop = consoleEl.scrollHeight;
             }
         }
@@ -595,7 +348,6 @@
                     line.classList.add('filtered');
                 }
             });
-
             updateStats();
         }
 
@@ -613,19 +365,15 @@
         clearBtn.addEventListener('click', clearConsole);
         filterInput.addEventListener('input', applyFilter);
 
-        // Keyboard shortcuts
         document.addEventListener('keydown', function (e) {
-            // Space = Toggle Pause
             if (e.code === 'Space' && document.activeElement !== filterInput) {
                 e.preventDefault();
                 togglePause();
             }
-            // Escape = Clear filter
             if (e.code === 'Escape') {
                 filterInput.value = '';
                 applyFilter();
             }
-            // / = Focus filter
             if (e.key === '/' && document.activeElement !== filterInput) {
                 e.preventDefault();
                 filterInput.focus();
